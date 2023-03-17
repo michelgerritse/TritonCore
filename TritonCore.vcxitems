@@ -20,6 +20,13 @@
     <None Include="$(MSBuildThisFileDirectory)README.md" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Source\Devices\Sound\SN76489.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)Source\Interfaces\IBase.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)Source\Interfaces\IDevice.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)Source\Interfaces\ISoundDevice.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Source\TritonCore.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="$(MSBuildThisFileDirectory)Source\Devices\Sound\SN76489.cpp" />
   </ItemGroup>
 </Project>
