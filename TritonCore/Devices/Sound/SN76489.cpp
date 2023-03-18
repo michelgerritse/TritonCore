@@ -14,6 +14,7 @@ See LICENSE.txt file in the root directory of this source tree.
 #include "SN76489.h"
 
 /*
+ 
 This sound emulator implements the Sega style PSG:
 	- Shift register is 16-bit wide
 	- Tap bit 0 and 3 (XOR) for white noise feedback
@@ -27,6 +28,7 @@ The following features are missing:
 Known issues:
 	- The Triton audio engine currently does not allow sample rates > 200KHz. This is an XAudio2 limit
 	  To work around this the clock divider is doubled and the counters count down with 2
+
 */
 
 #define MAX_VOLUME		32767 / 2

@@ -14,7 +14,7 @@ See LICENSE.txt file in the root directory of this source tree.
 #ifndef _IBASE_H_
 #define _IBASE_H_
 
-#include "../TritonCore.h"
+#include "Source/TritonCore.h"
 
 /* Abstract base interface */
 struct __declspec(novtable) IBase

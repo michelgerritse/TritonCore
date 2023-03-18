@@ -14,7 +14,7 @@ See LICENSE.txt file in the root directory of this source tree.
 #ifndef _SN76489_H_
 #define _SN76489_H_
 
-#include "../../Interfaces/ISoundDevice.h"
+#include "Source/Interfaces/ISoundDevice.h"
 
 /* Texas Instruments SN76489 Sound Generator */
 class SN76489 : public ISoundDevice

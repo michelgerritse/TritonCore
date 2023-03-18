@@ -7,39 +7,39 @@
     <Text Include="$(MSBuildThisFileDirectory)LICENSE.txt" />
   </ItemGroup>
   <ItemGroup>
-    <Filter Include="Source">
+    <Filter Include="TritonCore">
       <UniqueIdentifier>{7df188ac-c650-4f04-bf78-b1228e8cf18c}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source\Interfaces">
+    <Filter Include="TritonCore\Interfaces">
       <UniqueIdentifier>{95e5f9a4-ad31-4c24-8df8-85fe0c06abbc}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source\Devices">
+    <Filter Include="TritonCore\Devices">
       <UniqueIdentifier>{279cd868-b80d-49d4-994e-1bed8df2b2e9}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source\Devices\Sound">
+    <Filter Include="TritonCore\Devices\Sound">
       <UniqueIdentifier>{f1f669a3-99e1-4a25-81df-8f8527172693}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="$(MSBuildThisFileDirectory)Source\TritonCore.h">
-      <Filter>Source</Filter>
+    <ClInclude Include="$(MSBuildThisFileDirectory)TritonCore\TritonCore.h">
+      <Filter>TritonCore</Filter>
     </ClInclude>
-    <ClInclude Include="$(MSBuildThisFileDirectory)Source\Interfaces\IBase.h">
-      <Filter>Source\Interfaces</Filter>
+    <ClInclude Include="$(MSBuildThisFileDirectory)TritonCore\Interfaces\IBase.h">
+      <Filter>TritonCore\Interfaces</Filter>
     </ClInclude>
-    <ClInclude Include="$(MSBuildThisFileDirectory)Source\Interfaces\IDevice.h">
-      <Filter>Source\Interfaces</Filter>
+    <ClInclude Include="$(MSBuildThisFileDirectory)TritonCore\Interfaces\IDevice.h">
+      <Filter>TritonCore\Interfaces</Filter>
     </ClInclude>
-    <ClInclude Include="$(MSBuildThisFileDirectory)Source\Interfaces\ISoundDevice.h">
-      <Filter>Source\Interfaces</Filter>
+    <ClInclude Include="$(MSBuildThisFileDirectory)TritonCore\Interfaces\ISoundDevice.h">
+      <Filter>TritonCore\Interfaces</Filter>
     </ClInclude>
-    <ClInclude Include="$(MSBuildThisFileDirectory)Source\Devices\Sound\SN76489.h">
-      <Filter>Source\Devices\Sound</Filter>
+    <ClInclude Include="$(MSBuildThisFileDirectory)TritonCore\Devices\Sound\SN76489.h">
+      <Filter>TritonCore\Devices\Sound</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="$(MSBuildThisFileDirectory)Source\Devices\Sound\SN76489.cpp">
-      <Filter>Source\Devices\Sound</Filter>
+    <ClCompile Include="$(MSBuildThisFileDirectory)TritonCore\Devices\Sound\SN76489.cpp">
+      <Filter>TritonCore\Devices\Sound</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
