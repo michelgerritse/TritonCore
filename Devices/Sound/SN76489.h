@@ -59,11 +59,11 @@ private:
 		int16_t		Volume;			/* Tone output volume */
 	};
 
-	int16_t		m_VolumeTable[16];	/* Non-linear volume table */
 	uint32_t	m_Register;			/* Current latched register */
 	uint8_t		m_StereoMask;		/* Game Gear stereo mask */
 	TONE		m_Tone[3];			/* Tone channels */
 	NOISE		m_Noise;			/* Noise channel */
+	uint32_t	m_LFSRDefault;		/* Default LFSR state */
 
 	uint32_t m_Model;
 	uint32_t m_Flags;

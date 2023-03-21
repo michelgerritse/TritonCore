@@ -31,24 +31,36 @@ Known issues:
 	  This halves the samplerate and should not impact sound quality too much
 */
 
-#define MAX_VOLUME		32767.0 / 2.0 /* Output voltage range is 0.0V to +2.5V ?? */
-#define LFSR_FEEDBACK	0x8000
+static int16_t s_VolumeTable[16];	/* Non-linear volume table */
+
+void BuildTables()
+{
+	static bool Initialized = false;
+
+	if (!Initialized)
+	{
+		double Volume = 32767.0 / 8.0; /* This needs validation */
+
+		for (auto i = 0; i < 15; i++)
+		{
+			s_VolumeTable[i] = (int16_t)Volume;
+			Volume /= 1.258925412; /* 2dB drop per step (10 ^ (2/20)) */
+		}
+		s_VolumeTable[15] = 0; /* OFF (full attenuation) */
+
+		Initialized = true;
+	}
+}
 
 SN76489::SN76489(uint32_t Model, uint32_t Flags) :
 	m_Model(Model),
 	m_Flags(Flags),
+	m_LFSRDefault(0x8000),
 	m_ClockSpeed(4000000),
 	m_ClockDivider(32) //FIXME: should be 16, see known issues
 {
-	double Volume = MAX_VOLUME / 4.0; /* Avoid clipping when volume of all 4 channels is MAX */
-
-	/* Build DAC output table */
-	for (auto i = 0; i < 15; i++)
-	{
-		m_VolumeTable[i] = (int16_t)Volume;
-		Volume /= 1.258925412; /* 2dB drop per step (10 ^ (2/20)) */
-	}
-	m_VolumeTable[15] = 0; /* OFF (full attenuation) */
+	/* Build any table required for this device */
+	BuildTables();
 
 	/* Reset device to initial state */
 	Reset(ResetType::PowerOnDefaults);
@@ -72,7 +84,7 @@ void SN76489::Reset(ResetType Type)
 		m_Tone[i].Counter	= 0;
 		m_Tone[i].Period	= 0;
 		m_Tone[i].FlipFlop	= 0xFFFF;
-		m_Tone[i].Volume	= m_VolumeTable[15];
+		m_Tone[i].Volume	= s_VolumeTable[15];
 	}
 
 	/* Reset noise generator */
@@ -80,8 +92,8 @@ void SN76489::Reset(ResetType Type)
 	m_Noise.FlipFlop = 1;
 	m_Noise.Control	= 0;
 	m_Noise.Period	= 16;
-	m_Noise.LFSR	= LFSR_FEEDBACK;
-	m_Noise.Volume	= m_VolumeTable[15];
+	m_Noise.LFSR	= m_LFSRDefault;
+	m_Noise.Volume	= s_VolumeTable[15];
 	m_Noise.Output	= 0;
 }
 
@@ -166,8 +178,8 @@ void SN76489::Write(uint32_t Address, uint32_t Data)
 
 		case 6: /* Noise control */
 			m_Noise.Control = Data & 0x07;		/* Always update, fixes Micro Machines */
-			m_Noise.LFSR	= LFSR_FEEDBACK;	/* Reset shift register to initial state */
-			m_Noise.Output	= 0;
+			m_Noise.LFSR	= m_LFSRDefault;	/* Reset shift register to initial state */
+			m_Noise.Output	= 0;				/* Reset noise output */
 
 			switch (m_Noise.Control & 0x03)
 			{						
@@ -190,19 +202,19 @@ void SN76489::Write(uint32_t Address, uint32_t Data)
 			break;
 
 		case 1: /* Tone 1 attenuation */
-			m_Tone[0].Volume = m_VolumeTable[Data & 0x0F];
+			m_Tone[0].Volume = s_VolumeTable[Data & 0x0F];
 			break;
 
 		case 3: /* Tone 2 attenuation */
-			m_Tone[1].Volume = m_VolumeTable[Data & 0x0F];
+			m_Tone[1].Volume = s_VolumeTable[Data & 0x0F];
 			break;
 
 		case 5: /* Tone 3 attenuation */
-			m_Tone[2].Volume = m_VolumeTable[Data & 0x0F];
+			m_Tone[2].Volume = s_VolumeTable[Data & 0x0F];
 			break;
 
 		case 7: /* Noise attenuation */
-			m_Noise.Volume = m_VolumeTable[Data & 0x0F];
+			m_Noise.Volume = s_VolumeTable[Data & 0x0F];
 			break;
 	}
 }
