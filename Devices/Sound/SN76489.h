@@ -7,33 +7,36 @@
 Copyright © 2023, Michel Gerritse
 All rights reserved.
 
-This source code is available under the BSD-style license.
-See LICENSE.txt file in the root directory of this source tree.
+This source code is available under the BSD-3-Clause license.
+See LICENSE.txt in the root directory of this source tree.
 
 */
 #ifndef _SN76489_H_
 #define _SN76489_H_
 
-#include "../../Interfaces/ISoundDevice.h"
+#include "Interfaces/ISoundDevice.h"
+#include "Interfaces/IAudioBuffer.h"
 
 /* Texas Instruments SN76489 Sound Generator */
 class SN76489 : public ISoundDevice
 {
 public:
-	/* IBase methods */
-	void		IncRef();
-	void		DecRef();
-	uint32_t	GetRefCount();
+	SN76489(uint32_t Model = 0, uint32_t Flags = 0);
+	~SN76489() = default;
 
 	/* IDevice methods */
 	const wchar_t*	GetDeviceName();
+	void			Reset(ResetType Type);
 
 	/* ISoundDevice methods */
-	void			Initialize(uint32_t ClockSpeed, uint32_t Model = 0, uint32_t Flags = 0);
-	void			Reset();
-	bool			EnumOutputs(uint32_t OutputId, SOUND_OUTPUT_DESC& Desc);
+	uint32_t		GetOutputCount();
+	uint32_t		GetSampleRate(uint32_t ID);
+	uint32_t		GetSampleFormat(uint32_t ID);
+	uint32_t		GetChannelMask(uint32_t ID);
+	const wchar_t*	GetOutputName(uint32_t ID);
+	void			SetClockSpeed(uint32_t ClockSpeed);
 	uint32_t		GetClockSpeed();
-	void			Write(uint32_t Address, uint8_t Data);
+	void			Write(uint32_t Address, uint32_t Data);
 	void			Update(uint32_t ClockCycles, std::vector<IAudioBuffer*> &OutBuffer);
 
 private:	
@@ -62,8 +65,10 @@ private:
 	TONE		m_Tone[3];			/* Tone channels */
 	NOISE		m_Noise;			/* Noise channel */
 
+	uint32_t m_Model;
+	uint32_t m_Flags;
 	uint32_t m_ClockSpeed;
-	uint32_t m_SampleRate;
+	uint32_t m_ClockDivider;
 	uint32_t m_CyclesToDo;
 
 	void UpdateToneGenerators();

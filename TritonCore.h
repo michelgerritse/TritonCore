@@ -7,8 +7,8 @@
 Copyright © 2023, Michel Gerritse
 All rights reserved.
 
-This source code is available under the BSD-style license.
-See LICENSE.txt file in the root directory of this source tree.
+This source code is available under the BSD-3-Clause license.
+See LICENSE.txt in the root directory of this source tree.
 
 */
 #ifndef _TRITON_CORE_H_
@@ -26,7 +26,7 @@ See LICENSE.txt file in the root directory of this source tree.
 /* 32-bit memory pair */
 typedef union
 {
-	/* Memory layout:
+	/* Memory layout on little endian machines:
 	
 	31                                  0
 	+-----------------------------------+

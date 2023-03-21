@@ -7,8 +7,8 @@
 Copyright © 2023, Michel Gerritse
 All rights reserved.
 
-This source code is available under the BSD-style license.
-See LICENSE.txt file in the root directory of this source tree.
+This source code is available under the BSD-3-Clause license.
+See LICENSE.txt in the root directory of this source tree.
 
 */
 #include "SN76489.h"
@@ -26,17 +26,31 @@ The following features are missing:
 
 Known issues:
 	- The Triton audio engine currently does not allow sample rates > 200KHz. This is an XAudio2 limit
-	  To work around this the clock divider is doubled and the counters count down with 2
+	  To work around this the clock divider is doubled and the counters count down with 2.
+	  This halves the samplerate and should not impact sound quality too much
 */
 
-#define MAX_VOLUME		32767 / 2
+#define MAX_VOLUME		32767.0 / 2.0 /* Output voltage range is 0.0V to +2.5V ?? */
 #define LFSR_FEEDBACK	0x8000
 
-/* Clock divider */
-const uint32_t ClockDivider = 32; //FIXME: Should be 16
-
-void SN76489::IncRef()
+SN76489::SN76489(uint32_t Model, uint32_t Flags) :
+	m_Model(Model),
+	m_Flags(Flags),
+	m_ClockSpeed(4000000),
+	m_ClockDivider(32) //FIXME: should be 16, see known issues
 {
+	double Volume = MAX_VOLUME / 4.0; /* Avoid clipping when volume of all 4 channels is MAX */
+
+	/* Build DAC output table */
+	for (auto i = 0; i < 15; i++)
+	{
+		m_VolumeTable[i] = (int16_t)Volume;
+		Volume /= 1.258925412; /* 2dB drop per step (10 ^ (2/20)) */
+	}
+	m_VolumeTable[15] = 0; /* OFF (full attenuation) */
+
+	/* Reset device to initial state */
+	Reset(ResetType::PowerOnDefaults);
 }
 
 const wchar_t* SN76489::GetDeviceName()
@@ -44,25 +58,7 @@ const wchar_t* SN76489::GetDeviceName()
 	return L"Texas Instruments SN76489";
 }
 
-void SN76489::Initialize(uint32_t ClockSpeed, uint32_t Model, uint32_t Flags)
-{
-	m_ClockSpeed = ClockSpeed;
-	m_SampleRate = ClockSpeed / ClockDivider;
-
-	double Volume = MAX_VOLUME / 4.0; /* Avoid clipping when volume of all 4 channels is MAX */
-
-	/* Build DAC output table */
-	for (auto i = 0; i < 15; i++)
-	{
-		m_VolumeTable[i] = (int16_t) Volume;
-		Volume /= 1.258925412; /* 2dB drop per step (10 ^ (2/20)) */
-	}
-	m_VolumeTable[15] = 0; /* OFF (full attenuation) */
-
-	Reset();
-}
-
-void SN76489::Reset()
+void SN76489::Reset(ResetType Type)
 {
 	m_CyclesToDo = 0;
 
@@ -88,18 +84,34 @@ void SN76489::Reset()
 	m_Noise.Output	= 0;
 }
 
-bool SN76489::EnumOutputs(uint32_t OutputId, SOUND_OUTPUT_DESC& Desc)
+uint32_t SN76489::GetOutputCount()
 {
-	if (OutputId == 0)
-	{
-		Desc.SampleRate	 = m_SampleRate;
-		Desc.Channels	 = 1;
-		Desc.ChannelMask = SPEAKER_FRONT_CENTER;
+	return 1;
+}
 
-		return true;
-	}
+uint32_t SN76489::GetSampleRate(uint32_t ID)
+{
+	return (m_ClockSpeed / m_ClockDivider);
+}
 
-	return false;
+uint32_t SN76489::GetSampleFormat(uint32_t ID)
+{
+	return 0;
+}
+
+uint32_t SN76489::GetChannelMask(uint32_t ID)
+{
+	return SPEAKER_FRONT_CENTER;;
+}
+
+const wchar_t* SN76489::GetOutputName(uint32_t ID)
+{
+	return L"Test";
+}
+
+void SN76489::SetClockSpeed(uint32_t ClockSpeed)
+{
+	m_ClockSpeed = ClockSpeed;
 }
 
 uint32_t SN76489::GetClockSpeed()
@@ -107,9 +119,9 @@ uint32_t SN76489::GetClockSpeed()
 	return m_ClockSpeed;
 }
 
-void SN76489::Write(uint32_t Address, uint8_t Data)
+void SN76489::Write(uint32_t Address, uint32_t Data)
 {
-	if (Address & 0x01) /* Might change this to 0x06 to match the port on the Game Gear */
+	if (Address == 0x01) /* Might change this to 0x06 to match the port on the Game Gear */
 	{
 		m_StereoMask = Data;
 		return;
@@ -124,21 +136,21 @@ void SN76489::Write(uint32_t Address, uint8_t Data)
 
 	switch (m_Register)
 	{
-		case 0: /* Channel 1 period */
+		case 0: /* Tone 1 period */
 			if (Latch)
 				m_Tone[0].Period = (m_Tone[0].Period & 0x3F0) | (Data & 0x0F);
 			else
 				m_Tone[0].Period = (m_Tone[0].Period & 0x00F) | ((Data & 0x3F) << 4);
 			break;
 
-		case 2: /* Channel 2 period */
+		case 2: /* Tone 2 period */
 			if (Latch)
 				m_Tone[1].Period = (m_Tone[1].Period & 0x3F0) | (Data & 0x0F);
 			else
 				m_Tone[1].Period = (m_Tone[1].Period & 0x00F) | ((Data & 0x3F) << 4);
 			break;
 
-		case 4: /* Channel 3 period */
+		case 4: /* Tone 3 period */
 			if (Latch)
 				m_Tone[2].Period = (m_Tone[2].Period & 0x3F0) | (Data & 0x0F);
 			else
@@ -146,7 +158,7 @@ void SN76489::Write(uint32_t Address, uint8_t Data)
 
 			if ((m_Noise.Control & 0x03) == 0x03)
 			{
-				/* Sync noise period with channel 3 period */
+				/* Sync noise period with tone 3 period */
 				m_Noise.Period = m_Tone[2].Period;
 			}
 			break;
@@ -176,19 +188,19 @@ void SN76489::Write(uint32_t Address, uint8_t Data)
 			}
 			break;
 
-		case 1: /* Channel 1 volume */
+		case 1: /* Tone 1 attenuation */
 			m_Tone[0].Volume = m_VolumeTable[Data & 0x0F];
 			break;
 
-		case 3: /* Channel 2 volume */
+		case 3: /* Tone 2 attenuation */
 			m_Tone[1].Volume = m_VolumeTable[Data & 0x0F];
 			break;
 
-		case 5: /* Channel 3 volume */
+		case 5: /* Tone 3 attenuation */
 			m_Tone[2].Volume = m_VolumeTable[Data & 0x0F];
 			break;
 
-		case 7: /* Noise volume */
+		case 7: /* Noise attenuation */
 			m_Noise.Volume = m_VolumeTable[Data & 0x0F];
 			break;
 	}
@@ -197,8 +209,8 @@ void SN76489::Write(uint32_t Address, uint8_t Data)
 void SN76489::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*> &OutBuffer)
 {
 	uint32_t TotalCycles = ClockCycles + m_CyclesToDo;
-	uint32_t Samples = TotalCycles / ClockDivider;
-	m_CyclesToDo = TotalCycles % ClockDivider;
+	uint32_t Samples = TotalCycles / m_ClockDivider;
+	m_CyclesToDo = TotalCycles % m_ClockDivider;
 
 	int16_t  Out;
 
@@ -220,12 +232,9 @@ void SN76489::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*> &OutBuffer
 	}
 }
 
-inline void SN76489::UpdateToneGenerators()
+void SN76489::UpdateToneGenerators()
 {
-	/*	The flipflop is used as a mask for the volume output
-		Normally you would do:
-		m_Tone[i].FlipFlop ^= 1;
-	*/
+	/*	Note: The flipflop is used as a mask over the volume output */
 
 	for (auto i = 0; i < 3; i++)
 	{
@@ -242,7 +251,7 @@ inline void SN76489::UpdateToneGenerators()
 	}
 }
 
-inline void SN76489::UpdateNoiseGenerator()
+void SN76489::UpdateNoiseGenerator()
 {
 	uint32_t Seed;
 
@@ -259,18 +268,18 @@ inline void SN76489::UpdateNoiseGenerator()
 			/* Update volume output mask */
 			m_Noise.Output = (m_Noise.LFSR & 1) ? 0xFFFF : 0;
 
-			if (m_Noise.Control & 0x04) /* "White" Noise */
+			if (m_Noise.Control & 0x04) /* "White" noise */
 			{
 				/* Tap bits 3 and 0 (XOR) */
-				Seed = ((m_Noise.LFSR >> 3) ^ m_Noise.LFSR) & 0x0001;
+				Seed = ((m_Noise.LFSR >> 3) ^ (m_Noise.LFSR >> 0)) & 0x0001;
 			}
-			else /* "Periodic" Noise */
+			else /* "Periodic" noise */
 			{
-				/* Tap bit 0 */
+				/* Tap bit 0 only */
 				Seed = m_Noise.LFSR & 0x0001;
 			}
 
-			/* Shift LFSR and apply seed (16-bits wide) */
+			/* Shift LFSR and apply seed (16-bit wide) */
 			m_Noise.LFSR = (m_Noise.LFSR >> 1) | (Seed << 15);
 		}
 	}

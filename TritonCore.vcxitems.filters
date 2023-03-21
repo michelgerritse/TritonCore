@@ -7,39 +7,34 @@
     <Text Include="$(MSBuildThisFileDirectory)LICENSE.txt" />
   </ItemGroup>
   <ItemGroup>
-    <Filter Include="Source">
-      <UniqueIdentifier>{7df188ac-c650-4f04-bf78-b1228e8cf18c}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source\Interfaces">
-      <UniqueIdentifier>{95e5f9a4-ad31-4c24-8df8-85fe0c06abbc}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source\Devices">
-      <UniqueIdentifier>{279cd868-b80d-49d4-994e-1bed8df2b2e9}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source\Devices\Sound">
-      <UniqueIdentifier>{f1f669a3-99e1-4a25-81df-8f8527172693}</UniqueIdentifier>
-    </Filter>
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="$(MSBuildThisFileDirectory)Source\TritonCore.h">
-      <Filter>Source</Filter>
+    <ClInclude Include="$(MSBuildThisFileDirectory)TritonCore.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)Interfaces\IDevice.h">
+      <Filter>Interfaces</Filter>
     </ClInclude>
-    <ClInclude Include="$(MSBuildThisFileDirectory)Source\Interfaces\IBase.h">
-      <Filter>Source\Interfaces</Filter>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Interfaces\ISoundDevice.h">
+      <Filter>Interfaces</Filter>
     </ClInclude>
-    <ClInclude Include="$(MSBuildThisFileDirectory)Source\Interfaces\IDevice.h">
-      <Filter>Source\Interfaces</Filter>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\SN76489.h">
+      <Filter>Devices\Sound</Filter>
     </ClInclude>
-    <ClInclude Include="$(MSBuildThisFileDirectory)Source\Interfaces\ISoundDevice.h">
-      <Filter>Source\Interfaces</Filter>
-    </ClInclude>
-    <ClInclude Include="$(MSBuildThisFileDirectory)Source\Devices\Sound\SN76489.h">
-      <Filter>Source\Devices\Sound</Filter>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Interfaces\IAudioBuffer.h">
+      <Filter>Interfaces</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="$(MSBuildThisFileDirectory)Source\Devices\Sound\SN76489.cpp">
-      <Filter>Source\Devices\Sound</Filter>
+    <Filter Include="Interfaces">
+      <UniqueIdentifier>{b66d8b56-8594-4014-aa80-c4e56e3a4bd9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Devices">
+      <UniqueIdentifier>{700d854f-0963-4d83-b0c0-66ba09772d8b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Devices\Sound">
+      <UniqueIdentifier>{65a3ecc4-0e48-4ed8-93ae-41e6fae6d289}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\SN76489.cpp">
+      <Filter>Devices\Sound</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
