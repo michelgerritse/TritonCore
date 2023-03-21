@@ -27,8 +27,7 @@ The following features are missing:
 
 Known issues:
 	- The Triton audio engine currently does not allow sample rates > 200KHz. This is an XAudio2 limit
-	  To work around this the clock divider is doubled and the counters count down with 2.
-	  This halves the samplerate and should not impact sound quality too much
+	  To work around this only odd samples will be output, effectively halving the sample rate
 */
 
 static int16_t s_VolumeTable[16];	/* Non-linear volume table */
@@ -57,7 +56,7 @@ SN76489::SN76489(uint32_t Model, uint32_t Flags) :
 	m_Flags(Flags),
 	m_LFSRDefault(0x8000),
 	m_ClockSpeed(4000000),
-	m_ClockDivider(32) //FIXME: should be 16, see known issues
+	m_ClockDivider(16)
 {
 	/* Build any table required for this device */
 	BuildTables();
@@ -95,6 +94,8 @@ void SN76489::Reset(ResetType Type)
 	m_Noise.LFSR	= m_LFSRDefault;
 	m_Noise.Volume	= s_VolumeTable[15];
 	m_Noise.Output	= 0;
+
+	m_SampleHack = 0; // FIXME: see notes section
 }
 
 uint32_t SN76489::GetOutputCount()
@@ -104,7 +105,7 @@ uint32_t SN76489::GetOutputCount()
 
 uint32_t SN76489::GetSampleRate(uint32_t ID)
 {
-	return (m_ClockSpeed / m_ClockDivider);
+	return (m_ClockSpeed / m_ClockDivider) / 2; // FIXME: See notes section
 }
 
 uint32_t SN76489::GetSampleFormat(uint32_t ID)
@@ -233,13 +234,16 @@ void SN76489::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*> &OutBuffer
 		UpdateNoiseGenerator();
 
 		/* Mix channels */
-		Out  = (m_Tone[0].Volume & m_Tone[0].FlipFlop);
-		Out += (m_Tone[1].Volume & m_Tone[1].FlipFlop);
-		Out += (m_Tone[2].Volume & m_Tone[2].FlipFlop);
-		Out += (m_Noise.Volume & m_Noise.Output);
+		if (!(m_SampleHack ^= 1)) //FIXME: See notes section
+		{
+			Out =  (m_Tone[0].Volume & m_Tone[0].FlipFlop);
+			Out += (m_Tone[1].Volume & m_Tone[1].FlipFlop);
+			Out += (m_Tone[2].Volume & m_Tone[2].FlipFlop);
+			Out += (m_Noise.Volume & m_Noise.Output);
 
-		/* Output sample to buffer */
-		OutBuffer[0]->WriteSampleS16(Out);
+			/* Output sample to buffer */
+			OutBuffer[0]->WriteSampleS16(Out);
+		}
 
 		Samples--;
 	}
@@ -251,9 +255,7 @@ void SN76489::UpdateToneGenerators()
 
 	for (auto i = 0; i < 3; i++)
 	{
-		m_Tone[i].Counter -= 2; //FIXME: should be -= 1
-
-		if (m_Tone[i].Counter <= 0)
+		if (--m_Tone[i].Counter <= 0)
 		{
 			/* Reload counter */
 			m_Tone[i].Counter = m_Tone[i].Period;
@@ -268,9 +270,7 @@ void SN76489::UpdateNoiseGenerator()
 {
 	uint32_t Seed;
 
-	m_Noise.Counter -= 2; //FIXME: should be -= 1
-
-	if (m_Noise.Counter <= 0)
+	if (--m_Noise.Counter <= 0)
 	{
 		/* Reload counter */
 		m_Noise.Counter = m_Noise.Period;

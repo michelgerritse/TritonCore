@@ -71,6 +71,8 @@ private:
 	uint32_t m_ClockDivider;
 	uint32_t m_CyclesToDo;
 
+	uint32_t m_SampleHack;
+
 	void UpdateToneGenerators();
 	void UpdateNoiseGenerator();
 };
