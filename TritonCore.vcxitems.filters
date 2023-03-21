@@ -20,6 +20,9 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)Interfaces\IAudioBuffer.h">
       <Filter>Interfaces</Filter>
     </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\NullSound.h">
+      <Filter>Devices\Sound</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Interfaces">
@@ -34,6 +37,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\SN76489.cpp">
+      <Filter>Devices\Sound</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\NullSound.cpp">
       <Filter>Devices\Sound</Filter>
     </ClCompile>
   </ItemGroup>

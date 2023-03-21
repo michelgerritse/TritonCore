@@ -20,6 +20,7 @@
     <None Include="$(MSBuildThisFileDirectory)README.md" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\NullSound.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\SN76489.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Interfaces\IAudioBuffer.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Interfaces\IDevice.h" />
@@ -27,6 +28,7 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)TritonCore.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\NullSound.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\SN76489.cpp" />
   </ItemGroup>
 </Project>

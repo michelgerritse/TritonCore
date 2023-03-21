@@ -27,7 +27,7 @@ The following features are missing:
 
 Known issues:
 	- The Triton audio engine currently does not allow sample rates > 200KHz. This is an XAudio2 limit
-	  To work around this only odd samples will be output, effectively halving the sample rate
+	  To work around this only every other sample will be output, effectively halving the sample rate
 */
 
 static int16_t s_VolumeTable[16];	/* Non-linear volume table */
