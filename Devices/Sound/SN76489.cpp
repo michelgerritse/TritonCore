@@ -27,13 +27,8 @@ The following features are missing:
 
 Known issues:
 	- The Triton audio engine currently does not allow sample rates > 200KHz. This is an XAudio2 limit
-<<<<<<<< HEAD:Devices/Sound/SN76489.cpp
 	  To work around this the clock divider is doubled and the counters count down with 2.
 	  This halves the samplerate and should not impact sound quality too much
-========
-	  To work around this the clock divider is doubled and the counters count down with 2
-
->>>>>>>> 4333eb0f0248882e14a289f2963ff3d59a96b815:TritonCore/Devices/Sound/SN76489.cpp
 */
 
 #define MAX_VOLUME		32767.0 / 2.0 /* Output voltage range is 0.0V to +2.5V ?? */

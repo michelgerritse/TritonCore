@@ -14,12 +14,8 @@ See LICENSE.txt in the root directory of this source tree.
 #ifndef _SN76489_H_
 #define _SN76489_H_
 
-<<<<<<<< HEAD:Devices/Sound/SN76489.h
 #include "Interfaces/ISoundDevice.h"
 #include "Interfaces/IAudioBuffer.h"
-========
-#include "Source/Interfaces/ISoundDevice.h"
->>>>>>>> 4333eb0f0248882e14a289f2963ff3d59a96b815:TritonCore/Devices/Sound/SN76489.h
 
 /* Texas Instruments SN76489 Sound Generator */
 class SN76489 : public ISoundDevice
