@@ -38,7 +38,14 @@ void BuildTables()
 
 	if (!Initialized)
 	{
-		double Volume = 32767.0 / 8.0; /* This needs validation */
+		//double Volume = 32767.0 / 8.0; /* This needs validation */
+		
+		/*
+		Each channel outputs 0.8V for a total of ~3.3V. We map this to a 5.0V max output
+		https://scarybeastsecurity.blogspot.com/2020/06/sampled-sound-1980s-style-from-sn76489.html
+		*/
+		
+		double Volume = ((32767 * 3.3) / 5.0) / 4;
 
 		for (auto i = 0; i < 15; i++)
 		{
