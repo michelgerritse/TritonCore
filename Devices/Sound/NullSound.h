@@ -17,27 +17,45 @@ See LICENSE.txt in the root directory of this source tree.
 #include "Interfaces/ISoundDevice.h"
 #include "Interfaces/IAudioBuffer.h"
 
-/* NULL sound generator */
+/* NULL sound device */
 class NullSound : public ISoundDevice
 {
 public:
-	NullSound(uint32_t Model = 0, uint32_t Flags = 0);
+	NullSound() {};
 	~NullSound() = default;
 
 	/* IDevice methods */
-	const wchar_t*	GetDeviceName();
-	void			Reset(ResetType Type);
+	const wchar_t*	GetDeviceName()
+	{
+		return L"NULL Sound Device";
+	}
+	
+	void Reset(ResetType Type)
+	{
+	};
 
 	/* ISoundDevice methods */
-	uint32_t		GetOutputCount();
-	uint32_t		GetSampleRate(uint32_t ID);
-	uint32_t		GetSampleFormat(uint32_t ID);
-	uint32_t		GetChannelMask(uint32_t ID);
-	const wchar_t*	GetOutputName(uint32_t ID);
-	void			SetClockSpeed(uint32_t ClockSpeed);
-	uint32_t		GetClockSpeed();
-	void			Write(uint32_t Address, uint32_t Data);
-	void			Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer);
+	bool EnumAudioOutputs(uint32_t OutputNr, AUDIO_OUTPUT_DESC& Desc)
+	{
+		return false;
+	}
+	
+	void SetClockSpeed(uint32_t ClockSpeed)
+	{
+	}
+	
+	uint32_t GetClockSpeed()
+	{
+		return 0;
+	}
+	
+	void Write(uint32_t Address, uint32_t Data)
+	{
+	}
+	
+	void Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
+	{
+	}
 };
 
 #endif // !_NULLSOUND_H_
