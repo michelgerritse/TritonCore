@@ -345,8 +345,6 @@ namespace PSG
 
 		void UpdateNoiseGenerator()
 		{
-			uint32_t Seed;
-
 			if constexpr (AllowZeroPeriod) m_Noise.Counter--;
 			else m_Noise.Counter = (m_Noise.Counter - 1) & 0x3FF;
 
@@ -359,31 +357,24 @@ namespace PSG
 				if (m_Noise.FlipFlop ^= 1)
 				{
 					/* Update volume output mask */
-					m_Noise.Output = (m_Noise.LFSR & 1) ? 0xFFFF : 0;
+					//m_Noise.Output = (m_Noise.LFSR & 1) ? 0xFFFF : 0;
+					m_Noise.Output = ~((m_Noise.LFSR & 1) - 1);
 
-					if (m_Noise.Control & 0x04) /* "White" noise */
+					uint32_t Feedback;
+					uint32_t BitTap1 = (m_Noise.Control & 0x04) ? (m_Noise.LFSR >> Tap1) : 0; /* Tap1 is always 0 for periodic noise */
+					uint32_t BitTap2 = m_Noise.LFSR >> Tap2;
+
+					if constexpr (UseXOR) /* XOR */
 					{
-						uint32_t BitTap1 = m_Noise.LFSR >> Tap1;
-						uint32_t BitTap2 = m_Noise.LFSR >> Tap2;
-
-						if constexpr (UseXOR) /* XOR */
-						{
-							Seed = BitTap1 ^ BitTap2;
-							Seed &= 1;
-						}
-						else /* XNOR */
-						{
-							Seed = ~(BitTap1 ^ BitTap2);
-							Seed &= 1;
-						}
+						Feedback = (BitTap1 ^ BitTap2) & 1;
 					}
-					else /* "Periodic" noise */
+					else /* XNOR */
 					{
-						Seed = m_Noise.LFSR & 1;
+						Feedback = (~(BitTap1 ^ BitTap2)) & 1;
 					}
 
-					/* Shift LFSR right and apply seed */
-					m_Noise.LFSR = (m_Noise.LFSR >> 1) | (Seed << (Width - 1));
+					/* Shift LFSR right and apply feedback */
+					m_Noise.LFSR = (m_Noise.LFSR >> 1) | (Feedback << (Width - 1));
 				}
 			}
 		}
@@ -396,7 +387,7 @@ namespace PSG
 			uint32_t	FlipFlop;		/* Output flip-flop */
 			uint32_t	Control;		/* Noise control register */
 			int16_t		Volume;			/* Noise output volume */
-			uint16_t	Output;			/* Volume ouput mask */
+			uint32_t	Output;			/* Volume ouput mask */
 		};
 
 		struct TONE
