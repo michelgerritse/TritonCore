@@ -37,14 +37,20 @@ See LICENSE.txt in the root directory of this source tree.
 #define SPEAKER_TOP_BACK_CENTER         0x10000
 #define SPEAKER_TOP_BACK_RIGHT          0x20000
 
+/* Sound device audio output description */
+struct AUDIO_OUTPUT_DESC
+{
+	uint32_t		SampleRate;
+	uint32_t		SampleFormat; /* ignore for now */
+	uint32_t		Channels;
+	uint32_t		ChannelMask;
+	std::wstring	Description;
+};
+
 /* Abstract sound device interface */
 struct __declspec(novtable) ISoundDevice : public IDevice
 {
-	virtual uint32_t		GetOutputCount() = 0;
-	virtual uint32_t		GetSampleRate(uint32_t ID) = 0;
-	virtual uint32_t		GetSampleFormat(uint32_t ID) = 0;
-	virtual uint32_t		GetChannelMask(uint32_t ID) = 0;
-	virtual const wchar_t*	GetOutputName(uint32_t ID) = 0;
+	virtual bool			EnumAudioOutputs(uint32_t OutputNr, AUDIO_OUTPUT_DESC& Desc) = 0;
 	virtual void			SetClockSpeed(uint32_t ClockSpeed) = 0;
 	virtual uint32_t		GetClockSpeed() = 0;
 	virtual void			Write(uint32_t Address, uint32_t Data) = 0;
