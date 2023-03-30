@@ -23,6 +23,12 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\SN76489.h">
       <Filter>Devices\Sound</Filter>
     </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\SegaPCM.h">
+      <Filter>Devices\Sound</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Interfaces\IPrivateMemory.h">
+      <Filter>Interfaces</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Interfaces">
@@ -34,5 +40,10 @@
     <Filter Include="Devices\Sound">
       <UniqueIdentifier>{65a3ecc4-0e48-4ed8-93ae-41e6fae6d289}</UniqueIdentifier>
     </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\SegaPCM.cpp">
+      <Filter>Devices\Sound</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

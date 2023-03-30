@@ -21,10 +21,15 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\NullSound.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\SegaPCM.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\SN76489.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Interfaces\IAudioBuffer.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Interfaces\IDevice.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)Interfaces\IPrivateMemory.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Interfaces\ISoundDevice.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)TritonCore.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\SegaPCM.cpp" />
   </ItemGroup>
 </Project>

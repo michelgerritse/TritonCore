@@ -11,8 +11,8 @@ This source code is available under the BSD-3-Clause license.
 See LICENSE.txt in the root directory of this source tree.
 
 */
-#ifndef _ISOUNDDEVICE_H_
-#define _ISOUNDDEVICE_H_
+#ifndef _ISOUND_DEVICE_H_
+#define _ISOUND_DEVICE_H_
 
 #include "IDevice.h"
 #include "IAudioBuffer.h"
@@ -57,4 +57,4 @@ struct __declspec(novtable) ISoundDevice : public IDevice
 	virtual void			Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer) = 0;
 };
 
-#endif // !_SOUNDIDEVICE_H_
+#endif // !_ISOUND_DEVICE_H_
