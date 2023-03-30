@@ -315,15 +315,15 @@ void SegaPCM::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer
 	}
 }
 
-void SegaPCM::CopyMemoryDirect(size_t Offset, uint8_t* Data, size_t Size)
+void SegaPCM::CopyToMemory(size_t Offset, uint8_t* Data, size_t Size)
 {
 	if ((Offset + Size) > m_Memory.size()) return;
 
 	memcpy(m_Memory.data() + Offset, Data, Size);
 }
 
-void SegaPCM::CopyMemoryIndirect(size_t Offset, uint8_t* Data, size_t Size)
+void SegaPCM::CopyToMemoryIndirect(size_t Offset, uint8_t* Data, size_t Size)
 {
 	/* No specialized implementation needed */
-	CopyMemoryDirect(Offset, Data, Size);
+	CopyToMemory(Offset, Data, Size);
 }

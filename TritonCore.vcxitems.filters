@@ -26,7 +26,7 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\SegaPCM.h">
       <Filter>Devices\Sound</Filter>
     </ClInclude>
-    <ClInclude Include="$(MSBuildThisFileDirectory)Interfaces\IPrivateMemory.h">
+    <ClInclude Include="$(MSBuildThisFileDirectory)Interfaces\IMemoryAccess.h">
       <Filter>Interfaces</Filter>
     </ClInclude>
   </ItemGroup>

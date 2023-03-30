@@ -15,10 +15,10 @@ See LICENSE.txt in the root directory of this source tree.
 #define _SEGA_PCM_H_
 
 #include "Interfaces/ISoundDevice.h"
-#include "Interfaces/IPrivateMemory.h"
+#include "Interfaces/IMemoryAccess.h"
 
 /* SegaPCM (315-5218) */
-class SegaPCM : public ISoundDevice, public IPrivateMemory
+class SegaPCM : public ISoundDevice, public IMemoryAccess
 {
 public:
 	SegaPCM(uint32_t Flags = 0);
@@ -35,9 +35,9 @@ public:
 	void			Write(uint32_t Address, uint32_t Data);
 	void			Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer);
 
-	/* IPrivateMemory methods */
-	void			CopyMemoryDirect(size_t Offset, uint8_t* Data, size_t Size);
-	void			CopyMemoryIndirect(size_t Offset, uint8_t* Data, size_t Size);
+	/* IMemoryAccess methods */
+	void			CopyToMemory(size_t Offset, uint8_t* Data, size_t Size);
+	void			CopyToMemoryIndirect(size_t Offset, uint8_t* Data, size_t Size);
 
 private:
 	/* PCM Channel */
