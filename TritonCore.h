@@ -52,4 +52,18 @@ typedef union
 	};
 }pair32_t;
 
+namespace TritonCore
+{
+	/* Returns the parity of a given integral type */
+	template<std::integral T>
+	constexpr uint32_t GetParity(T value)
+	{
+		using uint = std::make_unsigned_t<T>;
+		uint uValue(value);
+
+		return std::popcount(uValue);
+	}
+
+} // namespace TritonCore
+
 #endif // !_TRITON_CORE_H_
