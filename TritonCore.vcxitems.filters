@@ -32,6 +32,12 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\RF5C68.h">
       <Filter>Devices\Sound</Filter>
     </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\MSM6295.h">
+      <Filter>Devices\Sound</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\ADPCM.h">
+      <Filter>Devices\Sound</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Interfaces">
@@ -49,6 +55,12 @@
       <Filter>Devices\Sound</Filter>
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\RF5C68.cpp">
+      <Filter>Devices\Sound</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\MSM6295.cpp">
+      <Filter>Devices\Sound</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\ADPCM.cpp">
       <Filter>Devices\Sound</Filter>
     </ClCompile>
   </ItemGroup>

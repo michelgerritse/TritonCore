@@ -20,6 +20,8 @@
     <None Include="$(MSBuildThisFileDirectory)README.md" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\ADPCM.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\MSM6295.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\NullSound.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\RF5C68.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\SegaPCM.h" />
@@ -31,6 +33,8 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)TritonCore.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\ADPCM.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\MSM6295.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\RF5C68.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\SegaPCM.cpp" />
   </ItemGroup>

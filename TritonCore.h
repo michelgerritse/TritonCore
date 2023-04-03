@@ -17,6 +17,7 @@ See LICENSE.txt in the root directory of this source tree.
 #include <algorithm>
 #include <array>
 #include <bit>
+#include <cassert>
 #include <climits>
 #include <cstdint>
 #include <memory>
