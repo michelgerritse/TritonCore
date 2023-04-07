@@ -38,6 +38,12 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\ADPCM.h">
       <Filter>Devices\Sound</Filter>
     </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YMZ280B.h">
+      <Filter>Devices\Sound</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YM.h">
+      <Filter>Devices\Sound</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Interfaces">
@@ -61,6 +67,9 @@
       <Filter>Devices\Sound</Filter>
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\ADPCM.cpp">
+      <Filter>Devices\Sound</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\YMZ280B.cpp">
       <Filter>Devices\Sound</Filter>
     </ClCompile>
   </ItemGroup>
