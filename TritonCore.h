@@ -25,7 +25,7 @@ See LICENSE.txt in the root directory of this source tree.
 #include <vector>
 
 /* 32-bit memory pair */
-typedef union
+union pair32_t
 {
 	/* Memory layout on little endian machines:
 	
@@ -51,7 +51,45 @@ typedef union
 	{
 		uint8_t u8ll, u8lh, u8hl, u8hh;
 	};
-}pair32_t;
+
+	void operator =(const uint32_t &data) /* assignment operator */
+	{
+		u32 = data;
+	};
+
+	uint32_t operator = (pair32_t &data)
+	{
+		data.u32 = u32;
+		return data.u32;
+	}
+};
+
+/* 16-bit memory pair */
+union pair16_t
+{
+	/* Memory layout on little endian machines:
+
+	15                                  0
+	+-----------------------------------+
+	|                u16                |
+	+-----------------------------------+
+	|       u8h       |       u8l       |
+	+-----------------+-----------------+
+
+	*/
+	
+	uint16_t u16;
+
+	struct
+	{
+		uint8_t u8l, u8h;
+	};
+
+	void operator =(const uint16_t data)
+	{
+		u16 = data;
+	};
+};
 
 namespace TritonCore
 {
