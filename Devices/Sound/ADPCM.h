@@ -21,11 +21,14 @@ namespace OKI::ADPCM
 	/* Initialize the Dialogic ADPCM decoder */
 	void InitDecoder();
 	
-	/* Decode a nibble for the current step, return the calculated difference */
-	int16_t Decode(uint8_t Nibble, int32_t Step);
-	
-	/* Adjust the step for the next decoding pass, limit the resulting step to 0 - 48 */
-	int32_t AdjustStep(uint8_t Nibble, int32_t Step);
+	/* Decode a nibble */
+	void Decode(uint8_t Nibble, int32_t* pStep, int16_t* pSignal);
+}
+
+namespace YM::ADPCMZ
+{
+	/* Decode a nibble */
+	void Decode(uint8_t Nibble, int32_t* pStep, int16_t* pSignal);
 }
 
 #endif // !_ADPCM_H_
