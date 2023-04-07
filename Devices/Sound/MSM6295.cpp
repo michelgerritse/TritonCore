@@ -55,7 +55,7 @@ const float MSM6295::s_AttnTable[16] =
 	8 = -24.0dB	
 	9 - 15 = silence (assumption)
 
-	Formula used to calculate the attenualtion levels:
+	Formula used to calculate the attenuation levels:
 	dB = 10 ^ (value / 20)
 	
 	*/
@@ -183,7 +183,7 @@ void MSM6295::LoadPhrase(uint32_t Index, uint32_t Phrase, uint32_t AttnIndex)
 		Channel.Attn = s_AttnTable[AttnIndex];
 
 		/* Reset decoder state */
-		Channel.Sample = 0;
+		Channel.Signal = 0;
 		Channel.Step = 0;
 		Channel.NibbleShift = 4; /* Start with high order nibble */
 	}
@@ -218,16 +218,10 @@ void MSM6295::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer
 				if (Channel.Addr == Channel.End) Channel.On = 0;
 
 				/* Decode ADPCM nibble */
-				int16_t Diff = OKI::ADPCM::Decode(Nibble, Channel.Step);
-
-				/* Add calculated diff to previous sample and clamp to 12-bit */
-				Channel.Sample = std::clamp<int16_t>(Channel.Sample + Diff, -2048, 2047);
-
-				/* Adjust next step (range 0 - 48) */
-				Channel.Step = OKI::ADPCM::AdjustStep(Nibble, Channel.Step);
+				OKI::ADPCM::Decode(Nibble, &Channel.Step, &Channel.Signal);
 
 				/* Apply attenuation and accumulate */
-				Out += (int16_t) (Channel.Sample * Channel.Attn) << 2;
+				Out += (int16_t) (Channel.Signal * Channel.Attn * 4);
 			}
 		}
 

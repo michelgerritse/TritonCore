@@ -47,7 +47,7 @@ private:
 		uint32_t Addr;			/* Current address of speech data (18-bit) */
 		float	 Attn;			/* Attenuation (9 defined values) */
 
-		int16_t Sample;			/* 12-bit calculated ADPCM sample */
+		int16_t Signal;			/* Decoded ADPCM signal (12-bit) */
 		int32_t Step;			/* ADPCM step */
 		uint32_t NibbleShift;	/* Nibble selection shift */
 	};
