@@ -76,6 +76,11 @@ void YMZ280B::Reset(ResetType Type)
 	}
 }
 
+void YMZ280B::SendExclusiveCommand(uint32_t Command, uint32_t Value)
+{
+	/* No implementation needed */
+}
+
 bool YMZ280B::EnumAudioOutputs(uint32_t OutputNr, AUDIO_OUTPUT_DESC& Desc)
 {
 	if (OutputNr == 0)

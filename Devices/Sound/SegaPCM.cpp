@@ -148,6 +148,22 @@ void SegaPCM::Reset(ResetType Type)
 	}
 }
 
+void SegaPCM::SendExclusiveCommand(uint32_t Command, uint32_t Value)
+{
+	if (Command == 0) /* Interface register */
+	{
+		/* Setup memory banking parameters */
+		m_BankShift = Value & 0x0F;
+		m_BankMask = (0x70 | ((Value >> 16) & 0xFC));
+
+		/* Calculate memory size */
+		uint32_t Size = (1 << TritonCore::GetParity(m_BankMask)) << 16;
+
+		/* Set memory size */
+		m_Memory.resize(Size);
+	}
+}
+
 bool SegaPCM::EnumAudioOutputs(uint32_t OutputNr, AUDIO_OUTPUT_DESC& Desc)
 {
 	if (OutputNr == 0)

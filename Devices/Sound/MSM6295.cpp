@@ -100,6 +100,11 @@ void MSM6295::Reset(ResetType Type)
 	}
 }
 
+void MSM6295::SendExclusiveCommand(uint32_t Command, uint32_t Value)
+{
+	/* No implementation needed */
+}
+
 bool MSM6295::EnumAudioOutputs(uint32_t OutputNr, AUDIO_OUTPUT_DESC& Desc)
 {
 	if (OutputNr == 0)

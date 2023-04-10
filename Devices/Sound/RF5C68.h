@@ -33,6 +33,7 @@ public:
 	/* IDevice methods */
 	const wchar_t*	GetDeviceName();
 	void			Reset(ResetType Type);
+	void			SendExclusiveCommand(uint32_t Command, uint32_t Value);
 
 	/* ISoundDevice methods */
 	bool			EnumAudioOutputs(uint32_t OutputNr, AUDIO_OUTPUT_DESC& Desc);

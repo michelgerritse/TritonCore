@@ -31,8 +31,10 @@ public:
 	}
 	
 	void Reset(ResetType Type)
-	{
-	};
+	{}
+
+	void SendExclusiveCommand(uint32_t Command, uint32_t Value)
+	{}
 
 	/* ISoundDevice methods */
 	bool EnumAudioOutputs(uint32_t OutputNr, AUDIO_OUTPUT_DESC& Desc)
@@ -41,21 +43,18 @@ public:
 	}
 	
 	void SetClockSpeed(uint32_t ClockSpeed)
-	{
-	}
-	
+	{}
+
 	uint32_t GetClockSpeed()
 	{
 		return 0;
-	}
+	};
 	
 	void Write(uint32_t Address, uint32_t Data)
-	{
-	}
+	{}
 	
 	void Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
-	{
-	}
+	{}
 };
 
 #endif // !_NULLSOUND_H_

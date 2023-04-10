@@ -44,7 +44,7 @@ See LICENSE.txt in the root directory of this source tree.
 
 */
 
-namespace PSG
+namespace SNPSG
 {
 	/* Texas Instruments SN76489 (family / clone) sound generator */
 	template<
@@ -125,6 +125,17 @@ namespace PSG
 			m_SampleHack = 0; // FIXME
 		}
 
+		void SendExclusiveCommand(uint32_t Command, uint32_t Value)
+		{
+			if constexpr (IsStereo)
+			{
+				if (Command == 0x06)
+				{
+					m_StereoMask = Value & 0xFF;
+				}
+			}
+		}
+
 		/* ISoundDevice methods */
 		bool EnumAudioOutputs(uint32_t OutputNr, AUDIO_OUTPUT_DESC& Desc)
 		{
@@ -153,37 +164,6 @@ namespace PSG
 		}
 
 		void Write(uint32_t Address, uint32_t Data)
-		{
-			if constexpr (IsStereo)
-			{
-				if (Address == 0x06) m_StereoMask = Data;
-				else WriteRegister(Data);
-			}
-			else
-			{
-				WriteRegister(Data);
-			}
-		}
-
-		void Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
-		{
-			uint32_t TotalCycles = ClockCycles + m_CyclesToDo;
-			uint32_t Samples = TotalCycles / m_ClockDivider;
-			m_CyclesToDo = TotalCycles % m_ClockDivider;
-
-			if constexpr (IsStereo)
-			{
-				UpdateStereo(Samples, OutBuffer);
-			}
-			else
-			{
-				UpdateMono(Samples, OutBuffer);
-			}
-		}
-
-	private:
-
-		void WriteRegister(uint32_t Data)
 		{
 			auto Latch = Data & 0x80;
 
@@ -263,6 +243,24 @@ namespace PSG
 				break;
 			}
 		}
+
+		void Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
+		{
+			uint32_t TotalCycles = ClockCycles + m_CyclesToDo;
+			uint32_t Samples = TotalCycles / m_ClockDivider;
+			m_CyclesToDo = TotalCycles % m_ClockDivider;
+
+			if constexpr (IsStereo)
+			{
+				UpdateStereo(Samples, OutBuffer);
+			}
+			else
+			{
+				UpdateMono(Samples, OutBuffer);
+			}
+		}
+
+	private:
 
 		void UpdateMono(uint32_t Samples, std::vector<IAudioBuffer*>& OutBuffer)
 		{
@@ -410,13 +408,13 @@ namespace PSG
 		uint32_t	m_CyclesToDo;
 		uint32_t	m_SampleHack; //FIXME
 	};
-} // namespace PSG
+} // namespace SNPSG
 
-using SN76489	= PSG::Core<15, 1, 0, true,  false, true,  false, 16>;
-using SN76489A	= PSG::Core<17, 3, 2, true,  false, false, false, 16>;
-using SEGAPSG	= PSG::Core<16, 3, 0, true,  true,  true,  false, 16>;
-using SEGAPSG2	= PSG::Core<16, 3, 0, true,  true,  true,  true,  16>;
-using NCR8496	= PSG::Core<16, 5, 1, false, false, true,  false, 16>;
-using PSSJ3		= PSG::Core<16, 5, 1, false, false, false, false, 16>;
+using SN76489	= SNPSG::Core<15, 1, 0, true,  false, true,  false, 16>;
+using SN76489A	= SNPSG::Core<17, 3, 2, true,  false, false, false, 16>;
+using SEGAPSG	= SNPSG::Core<16, 3, 0, true,  true,  true,  false, 16>;
+using SEGAPSG2	= SNPSG::Core<16, 3, 0, true,  true,  true,  true,  16>; /* Game Gear version */
+using NCR8496	= SNPSG::Core<16, 5, 1, false, false, true,  false, 16>;
+using PSSJ3		= SNPSG::Core<16, 5, 1, false, false, false, false, 16>;
 
 #endif // !_SN76489_CORE_H_

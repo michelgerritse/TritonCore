@@ -21,8 +21,11 @@ enum class ResetType : uint32_t
 {
 	/* Power ON defaults (eg. hard reset) */
 	PowerOnDefaults = 0,
+
+	/* Reset to default state (eg. /IC pin on a chip) */
+	InitialClear,
 	
-	/* Soft reset */
+	/* Soft reset (eg. reset button) */
 	Soft
 };
 
@@ -34,6 +37,9 @@ struct __declspec(novtable) IDevice
 
 	/* Reset device */
 	virtual void Reset(ResetType Type) = 0;
+
+	/* Send an exclusive command to the device */
+	virtual void SendExclusiveCommand(uint32_t Command, uint32_t Value) = 0;
 };
 
 #endif // !_IDEVICE_H_

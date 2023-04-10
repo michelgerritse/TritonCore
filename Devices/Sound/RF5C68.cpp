@@ -91,6 +91,11 @@ void RF5C68::Reset(ResetType Type)
 	}
 }
 
+void RF5C68::SendExclusiveCommand(uint32_t Command, uint32_t Value)
+{
+	/* No implementation needed */
+}
+
 bool RF5C68::EnumAudioOutputs(uint32_t OutputNr, AUDIO_OUTPUT_DESC& Desc)
 {
 	if (OutputNr == 0)
