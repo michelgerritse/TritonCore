@@ -553,7 +553,7 @@ void YMW258F::UpdateEnvelopeGenerator(CHANNEL& Channel)
 
 			if (Rate < 63)
 			{
-				Level += (~Level << AttnInc) >> 5;
+				Level += (~Level * AttnInc) >> 4;
 
 				if (Level <= 0)
 				{
@@ -575,7 +575,11 @@ void YMW258F::UpdateEnvelopeGenerator(CHANNEL& Channel)
 			if (Channel.EgPhase == ADSR::Decay)
 			{
 				/* We reached the decay level, move to the sustain phase */
-				if ((uint32_t) Level >= Channel.DL) Channel.EgPhase = ADSR::Sustain;
+				if ((uint32_t)Level >= Channel.DL)
+				{
+					Level = Channel.DL;
+					Channel.EgPhase = ADSR::Sustain;
+				}
 			}
 		}
 
