@@ -46,10 +46,10 @@ private:
 		uint32_t On;			/* Channel playing = 1, suspended = 0 */
 		uint32_t End;			/* End address of speech data (18-bit) */
 		uint32_t Addr;			/* Current address of speech data (18-bit) */
-		float	 Attn;			/* Attenuation (9 defined values) */
+		uint8_t	 Volume;		/* Volume (9 defined values) */
 
-		int16_t Signal;			/* Decoded ADPCM signal (12-bit) */
-		int32_t Step;			/* ADPCM step */
+		int16_t	 Signal;		/* Decoded ADPCM signal (12-bit) */
+		int32_t  Step;			/* ADPCM step */
 		uint32_t NibbleShift;	/* Nibble selection shift */
 	};
 
@@ -63,7 +63,7 @@ private:
 
 	std::vector<uint8_t> m_Memory;
 
-	static const float s_AttnTable[16];
+	static const uint8_t s_VolumeTable[16];
 
 	void LoadPhrase(uint32_t Index, uint32_t Phrase, uint32_t AttnIndex);
 };

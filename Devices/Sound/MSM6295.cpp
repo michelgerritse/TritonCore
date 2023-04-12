@@ -38,10 +38,9 @@ See LICENSE.txt in the root directory of this source tree.
 	- 9 attenuation levels are specified (0 - 8), what happens when you set it to 9 - 15 ?
 */
 
-const float MSM6295::s_AttnTable[16] =
+const uint8_t MSM6295::s_VolumeTable[16] =
 {
-	/* Attenuation table:
-
+	/*
 	The following 9 values are defined by the manual:
 
 	0 =   0.0dB	
@@ -55,15 +54,20 @@ const float MSM6295::s_AttnTable[16] =
 	8 = -24.0dB	
 	9 - 15 = silence (assumption)
 
-	Formula used to calculate the attenuation levels:
+	Old formula to calculate the attenuation levels:
 	dB = 10 ^ (value / 20)
-	
-	*/
 
 	1.0000000f, 0.6918310f, 0.5011872f, 0.3467369f,
 	0.2511886f, 0.1883649f, 0.1258925f, 0.0944061f,
 	0.0630957f, 0.0000000f, 0.0000000f, 0.0000000f,
 	0.0000000f, 0.0000000f, 0.0000000f, 0.0000000f
+
+	As suggested by Valley Bell, this can be re-written into:
+	dB = round(32 * (10 ^ (value / 20));
+
+	This maps to the following 5-bit table:
+	*/
+	32, 22, 16, 11, 8, 6, 4, 3, 2, 0, 0, 0, 0, 0, 0, 0
 };
 
 MSM6295::MSM6295(bool PinSS) :
@@ -185,7 +189,7 @@ void MSM6295::LoadPhrase(uint32_t Index, uint32_t Phrase, uint32_t AttnIndex)
 		Channel.On = 1;
 		Channel.Addr = Start & 0x3FFFF;
 		Channel.End = (End + 1) & 0x3FFFF; /* Inclusive */
-		Channel.Attn = s_AttnTable[AttnIndex];
+		Channel.Volume = s_VolumeTable[AttnIndex];
 
 		/* Reset decoder state */
 		Channel.Signal = 0;
@@ -217,7 +221,7 @@ void MSM6295::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer
 				Channel.NibbleShift ^= 4;
 
 				/* Increase address counter (do this after the ^= 4) */
-				Channel.Addr += (Channel.NibbleShift >> 2);
+				Channel.Addr = (Channel.Addr + (Channel.NibbleShift >> 2)) & 0x3FFFF;
 
 				/* Check for end of phrase */
 				if (Channel.Addr == Channel.End) Channel.On = 0;
@@ -226,7 +230,7 @@ void MSM6295::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer
 				OKI::ADPCM::Decode(Nibble, &Channel.Step, &Channel.Signal);
 
 				/* Apply attenuation and accumulate */
-				Out += (int16_t) (Channel.Signal * Channel.Attn * 4);
+				Out += (Channel.Signal * Channel.Volume) >> 3;
 			}
 		}
 
