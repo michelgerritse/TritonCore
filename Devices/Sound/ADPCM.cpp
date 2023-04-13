@@ -68,7 +68,7 @@ namespace OKI::ADPCM
 		};
 		
 		int32_t Step = *pStep;
-		int16_t Signal = *pSignal;
+		int16_t Signal = (*pSignal * 254) / 256;
 		
 		/* Adjust signal and clamp to 12-bit */
 		int16_t Diff = StepSize[(Step << 4) | Nibble];
