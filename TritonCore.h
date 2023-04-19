@@ -56,12 +56,6 @@ union pair32_t
 	{
 		u32 = data;
 	};
-
-	uint32_t operator = (pair32_t &data)
-	{
-		data.u32 = u32;
-		return data.u32;
-	}
 };
 
 /* 16-bit memory pair */
@@ -83,11 +77,6 @@ union pair16_t
 	struct
 	{
 		uint8_t u8l, u8h;
-	};
-
-	void operator =(const uint16_t data)
-	{
-		u16 = data;
 	};
 };
 
