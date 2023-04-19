@@ -27,6 +27,7 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\SegaPCM.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\SN76489.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YM.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YMF278B.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YMW258F.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YMZ280B.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Interfaces\IAudioBuffer.h" />
@@ -40,6 +41,7 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\MSM6295.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\RF5C68.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\SegaPCM.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\YMF278B.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\YMW258F.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\YMZ280B.cpp" />
   </ItemGroup>
