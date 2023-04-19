@@ -107,7 +107,7 @@ private:
 	std::vector<uint8_t> m_Memory;
 
 	void	WriteChannel(uint32_t Address, uint32_t Register, uint32_t Data);
-	void	ReadWaveHeader(CHANNEL& Channel);
+	void	LoadWaveTable(CHANNEL& Channel);
 	int16_t ReadSample(CHANNEL& Channel);
 	void	UpdatePhaseGenerator(CHANNEL& Channel);
 	void	UpdateEnvelopeGenerator(CHANNEL& Channel);
@@ -116,8 +116,6 @@ private:
 	void	UpdateLFO(CHANNEL& Channel);
 	void	ProcessKeyOnOff(CHANNEL& Channel);
 	uint8_t CalculateRate(CHANNEL& Channel, uint8_t Rate);
-
-	void	BuildTables();
 };
 
 #endif // !_YMW258F_H_

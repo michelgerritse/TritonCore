@@ -14,99 +14,34 @@ See LICENSE.txt in the root directory of this source tree.
 #include "YMW258F.h"
 #include "YM.h"
 
-/*	
+/*
 	Yamaha YMW258-F (GEW8)
 
 	This chip is also known as the Sega MultiPCM (315-5560)
-
 	- 28 PCM channels
-	- 8-bit and 12-bit linear PCM data (16-bit as well ?)
+	- 8-bit and 12-bit linear PCM data (possibly 16-bit as well)
 	- 16-stage pan control
 	- Envelope control
 	- PM and AM LFO (a.k.a vibrato and tremolo)
 	- Interface up to 4MB of ROM + SRAM (22-bit address bus + 8-bit data bus)
-
-	Things validate:
+	
+	Things to validate:
 	- LFO validation
 	- TL interpolation
-	- Attenuation (Envelope has a -96dB - 0dB range, TL and PAN a -48dB - 0 range)
-
+	- Attenuation (Envelope has a -96dB - 0dB range, TL and PAN a -48dB - 0 range but something is not adding up)
+	
 	Things to do:
 	- Implement a ADSR::Off state, to speed up code execution for non-playing channels
-
-	Daytona USA: Arcade Soundtrack (Vinyl Rip - Side A)
-	https://www.youtube.com/watch?v=aSCtTxcBOk8
-
-	Daytona USA: Arcade Soundtrack (Vinyl Rip - Side B)
-	https://www.youtube.com/watch?v=o_2zA522WFE
 
 	Sega banking information provided by Valley Bell:
 	https://github.com/ValleyBell/libvgm
 */
 
-static uint32_t PowTable[256];
-static uint32_t TremoloTable[256][8];
-static  int32_t VibratoTable[64][8];
-
-void YMW258F::BuildTables()
-{
-	static bool Initialized = false;
-
-	if (!Initialized)
-	{
-		/* Linear to dB table */
-		for (auto i = 0; i < 256; i++)
-		{
-			PowTable[i] = (YM::ExpTable[i ^ 255] | 0x400) << 2;
-		}
-
-		/* Tremolo table (AM) */
-		for (auto i = 0; i < 256; i++)
-		{
-			uint32_t Step = i; /* 256 steps */
-
-			/* Create triangular shaped wave (0x00 .. 0x7F, 0x7F .. 0x00) */
-			if (Step & 0x80) Step ^= 0xFF;
-
-			//TODO: is this an inverted triangle (like OPN) ?
-			//		eg. starting at maximum amplitude
-			//		Als need to confirm on the step increment (which is 2 for OPN)
-
-			for (auto j = 0; j < 8; j++)
-			{
-				TremoloTable[i][j] = (Step * YM::AWM::LfoAmDepth[j]) >> 7;
-			}
-		}
-
-		/* Vibrato table (PM) */
-		for (auto i = 0; i < 64; i++)
-		{
-			uint32_t Step = i; /* 64 steps (32 pos, 32 neg) */
-
-			/* Create triangular shaped wave (0x0 .. 0xF, 0xF .. 0x0) */
-			if (Step & 0x10) Step ^= 0x1F;
-
-			for (auto j = 0; j < 8; j++)
-			{
-				if (Step & 0x20) /* Negative phase */
-				{
-					VibratoTable[i][j] = 0 - (((Step & 0x0F) * YM::AWM::LfoPmDepth[j]) >> 4);
-				}
-				else /* Positive phase */
-				{
-					VibratoTable[i][j] = ((Step & 0x0F) * YM::AWM::LfoPmDepth[j]) >> 4;
-				}
-			}
-		}
-
-		Initialized = true;
-	}
-}
-
 YMW258F::YMW258F() :
+	m_ClockSpeed(9878400),
 	m_ClockDivider(224)
 {
-	BuildTables();
+	YM::AWM::BuildTables();
 
 	/* Set memory size to 4MB */
 	m_Memory.resize(0x400000);
@@ -206,14 +141,11 @@ uint32_t YMW258F::GetClockSpeed()
 }
 
 void YMW258F::Write(uint32_t Address, uint32_t Data)
-{
-	/* 4-bit address bus (A0 - A3) */
-	Address &= 0x0F;
-	
+{	
 	/* 8-bit data bus (D0 - D7) */
 	Data &= 0xFF;
 	
-	switch (Address)
+	switch (Address & 0x0F) /* 4-bit address bus (A0 - A3) */
 	{
 	case 0x00: /* PCM channel data write */
 		WriteChannel(m_AddressLatch, m_RegisterLatch, Data);
@@ -288,11 +220,9 @@ void YMW258F::WriteChannel(uint32_t Address, uint32_t Register, uint32_t Data)
 		break;
 
 	case 0x01: /* Wave table number [7:0] */
-		Channel.WaveNr.u8l = Data;
-
-		/* Load wave header */
-		ReadWaveHeader(Channel);
-
+		Channel.WaveNr.u8l = Data;	
+		
+		LoadWaveTable(Channel);
 		break;
 
 	case 0x02: /* Frequency [5:0] / Wave table number [8] */
@@ -344,7 +274,7 @@ void YMW258F::WriteChannel(uint32_t Address, uint32_t Register, uint32_t Data)
 	}
 }
 
-void YMW258F::ReadWaveHeader(CHANNEL& Channel)
+void YMW258F::LoadWaveTable(CHANNEL& Channel)
 {
 	/* Read wave table header. Each header is 12-bytes */
 	uint32_t Offset = Channel.WaveNr.u16 * 12;
@@ -467,15 +397,15 @@ int16_t YMW258F::ReadSample(CHANNEL& Channel)
 		break;
 
 	case 1: /* 12-bit PCM */
-		Offset = Channel.Start.u32 + ((Channel.Addr.u16h * 2) / 3);
+		Offset = Channel.Start.u32 + ((Channel.Addr.u16h * 3) / 2);
 
 		if (Channel.Addr.u16h & 0x01)
 		{
-			Sample = (m_Memory[Offset + 2] << 8) | (m_Memory[Offset + 1] & 0xF0);
+			Sample = (m_Memory[Offset + 2] << 8) | ((m_Memory[Offset + 1] & 0x0F) << 4);
 		}
 		else
 		{
-			Sample = (m_Memory[Offset + 0] << 8) | (m_Memory[Offset + 1] << 4);
+			Sample = (m_Memory[Offset + 0] << 8) | (m_Memory[Offset + 1] & 0xF0);
 		}
 		break;
 
@@ -507,7 +437,7 @@ void YMW258F::UpdateLFO(CHANNEL& Channel)
 void YMW258F::UpdatePhaseGenerator(CHANNEL& Channel)
 {
 	/* Vibrato lookup */
-	int32_t Vibrato = VibratoTable[Channel.LfoStep >> 2][Channel.PmDepth]; /* 64 steps */
+	int32_t Vibrato = YM::AWM::VibratoTable[Channel.LfoStep >> 2][Channel.PmDepth]; /* 64 steps */
 
 	/* Calculate phase increment */
 	uint32_t Inc = ((1024 + Channel.FNum + Vibrato) << (8 + Channel.Octave)) >> 3;
@@ -616,7 +546,7 @@ void YMW258F::UpdateMultiplier(CHANNEL& Channel)
 	int16_t Sample = Channel.Sample;
 
 	/* Apply AM LFO (tremolo) */
-	Attenuation += TremoloTable[Channel.LfoStep][Channel.AmDepth];
+	Attenuation += YM::AWM::TremoloTable[Channel.LfoStep][Channel.AmDepth];
 
 	/* Apply total level */
 	Attenuation += Channel.TL << 2;
@@ -634,8 +564,8 @@ void YMW258F::UpdateMultiplier(CHANNEL& Channel)
 	AttnR <<= 2;
 
 	/* linear to dB conversion */
-	uint32_t VolumeL = PowTable[AttnL & 0xFF] >> (AttnL >> 8);
-	uint32_t VolumeR = PowTable[AttnR & 0xFF] >> (AttnR >> 8);
+	uint32_t VolumeL = YM::AWM::PowTable[AttnL & 0xFF] >> (AttnL >> 8);
+	uint32_t VolumeR = YM::AWM::PowTable[AttnR & 0xFF] >> (AttnR >> 8);
 
 	/* Multiply with interpolated sample */
 	Channel.OutputL = (Sample * VolumeL) >> 15;
