@@ -14,8 +14,8 @@ See LICENSE.txt in the root directory of this source tree.
 #ifndef _RF5C68_H_
 #define _RF5C68_H_
 
-#include "Interfaces/ISoundDevice.h"
-#include "Interfaces/IMemoryAccess.h"
+#include "../../Interfaces/ISoundDevice.h"
+#include "../../Interfaces/IMemoryAccess.h"
 
 /* Ricoh RF5C68 / RF5C164 PCM Sound Source */
 class RF5C68 : public ISoundDevice, public IMemoryAccess

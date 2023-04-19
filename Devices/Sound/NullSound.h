@@ -14,8 +14,7 @@ See LICENSE.txt in the root directory of this source tree.
 #ifndef _NULLSOUND_H_
 #define _NULLSOUND_H_
 
-#include "Interfaces/ISoundDevice.h"
-#include "Interfaces/IAudioBuffer.h"
+#include "../../Interfaces/ISoundDevice.h"
 
 /* NULL sound device */
 class NullSound : public ISoundDevice

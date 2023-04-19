@@ -14,8 +14,8 @@ See LICENSE.txt in the root directory of this source tree.
 #ifndef _MSM6295_H_
 #define _MSM6295_H_
 
-#include "Interfaces/ISoundDevice.h"
-#include "Interfaces/IMemoryAccess.h"
+#include "../../Interfaces/ISoundDevice.h"
+#include "../../Interfaces/IMemoryAccess.h"
 
 /* Oki MSM6295 4-channel mixing ADPCM voice synthesis LSI */
 class MSM6295 : public ISoundDevice, public IMemoryAccess

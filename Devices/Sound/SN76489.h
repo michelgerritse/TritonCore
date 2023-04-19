@@ -14,8 +14,7 @@ See LICENSE.txt in the root directory of this source tree.
 #ifndef _SN76489_CORE_H_
 #define _SN76489_CORE_H_
 
-#include "Interfaces/ISoundDevice.h"
-#include "Interfaces/IAudioBuffer.h"
+#include "../../Interfaces/ISoundDevice.h"
 
 /*
 	Supported SN76489 family (and clones) overview:

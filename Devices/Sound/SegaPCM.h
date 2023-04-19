@@ -14,8 +14,8 @@ See LICENSE.txt in the root directory of this source tree.
 #ifndef _SEGA_PCM_H_
 #define _SEGA_PCM_H_
 
-#include "Interfaces/ISoundDevice.h"
-#include "Interfaces/IMemoryAccess.h"
+#include "../../Interfaces/ISoundDevice.h"
+#include "../../Interfaces/IMemoryAccess.h"
 
 /* SegaPCM (315-5218) */
 class SegaPCM : public ISoundDevice, public IMemoryAccess
