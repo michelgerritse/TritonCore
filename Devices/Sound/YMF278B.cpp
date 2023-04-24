@@ -34,7 +34,7 @@ See LICENSE.txt in the root directory of this source tree.
 	- Implement FM
 	- Implement pseudo-reverb
 	- Implement damping
-	- Implement LFO reset
+	- Output channel selection
 	- Implement a ADSR::Off state, to speed up code execution for non-playing channels
 */
 
@@ -73,16 +73,17 @@ void YMF278B::Reset(ResetType Type)
 {
 	m_CyclesToDo = 0;
 
-	/* Reset latches */
-	m_AddrLatchFM0 = 0;
-	m_AddrLatchFM1 = 0;
-	m_AddrLatchPCM = 0;
+	m_AddressLatch = 0;
 
 	/* Reset utility registers */
 	m_MemoryAddress.u32 = 0;
 	m_MemoryAccess = 0;
 	m_MemoryType = 0;
 	m_WaveTableHeader = 0;
+	
+	/* Reset OPL expansion registers  */
+	m_New = 0;
+	m_New2 = 0;
 
 	/* Reset mix control */
 	m_MixCtrlFML = MixAttnTable[3]; /* -9dB */
@@ -168,31 +169,23 @@ void YMF278B::Write(uint32_t Address, uint32_t Data)
 
 	switch (Address & 0x07) /* 3-bit address bus (A0 - A2) */
 	{
-	case 0x00: /* FM0 address write mode */
-		m_AddrLatchFM0 = Data;
+	case 0x00: /* Address write mode */
+	case 0x02:
+	case 0x04:
+	case 0x06:
+		m_AddressLatch = Data;
 		break;
 
-	case 0x01: /* FM0 data write mode */
-		WriteFM0(m_AddrLatchFM0, Data);
+	case 0x01: /* FM array 0 data write mode */
+		WriteFM0(m_AddressLatch, Data);
 		break;
 
-	case 0x02: /* FM1 address write mode */
-		m_AddrLatchFM1 = Data;
-		break;
-
-	case 0x03: /* FM1 data write mode */
-		WriteFM1(m_AddrLatchFM1, Data);
-		break;
-
-	case 0x04: /* PCM address write mode */
-		m_AddrLatchPCM = Data;
+	case 0x03: /* FM array 1 data write mode */
+		WriteFM1(m_AddressLatch, Data);
 		break;
 
 	case 0x05: /* PCM data write mode */
-		WritePCM(m_AddrLatchPCM, Data);
-		break;
-
-	case 0x06: /* Invalid address */
+		if (m_New2) WritePCM(m_AddressLatch, Data);
 		break;
 
 	case 0x07: /* Invalid address */
@@ -207,7 +200,31 @@ void YMF278B::WriteFM0(uint8_t Register, uint8_t Data)
 
 void YMF278B::WriteFM1(uint8_t Register, uint8_t Data)
 {
+	switch (Register)
+	{
+	case 0x00: /* LSI Test */
+	case 0x01:
+		break;
 
+	case 0x02: /* Not used */
+	case 0x03:
+		break;
+
+	case 0x04: /* 4-Operator mode setting */
+		//TODO
+		break;
+
+	case 0x05: /* Expansion register */
+		/* OPL3 mode enable flag */
+		m_New = Data & 0x01;
+
+		/* OPL4 mode enable flag */
+		if (m_New) m_New2 = (Data >> 1) & 0x01;
+		break;
+
+	default:
+		break;
+	}
 }
 
 void YMF278B::WritePCM(uint8_t Register, uint8_t Data)
@@ -294,7 +311,8 @@ void YMF278B::WritePCM(uint8_t Register, uint8_t Data)
 		Channel.KeyPending = Data >> 7;
 		Channel.PanAttnL = YM::AWM::PanAttnL[Data & 0x0F];
 		Channel.PanAttnR = YM::AWM::PanAttnR[Data & 0x0F];
-		//TODO: Damp, LFO reset, output selection
+		Channel.LfoReset = (Data >> 5) & 0x01;		
+		//TODO: Damp, output selection
 		break;
 
 	/* LFO / Vibrato (PM) */
@@ -498,13 +516,21 @@ int16_t YMF278B::ReadSample(CHANNEL& Channel)
 
 void YMF278B::UpdateLFO(CHANNEL& Channel)
 {
-	if (++Channel.LfoCounter >= Channel.LfoPeriod)
+	if (!Channel.LfoReset) /* LFO active */
 	{
-		/* Reset counter */
-		Channel.LfoCounter = 0;
+		if (++Channel.LfoCounter >= Channel.LfoPeriod)
+		{
+			/* Reset counter */
+			Channel.LfoCounter = 0;
 
-		/* Increase step counter (8-bit) */
-		Channel.LfoStep++;
+			/* Increase step counter (8-bit) */
+			Channel.LfoStep++;
+		}
+	}
+	else /* LFO deactive */
+	{
+		Channel.LfoCounter = 0;
+		Channel.LfoStep = 0;
 	}
 }
 
@@ -642,8 +668,8 @@ void YMF278B::UpdateMultiplier(CHANNEL& Channel)
 	uint32_t VolumeR = YM::AWM::PowTable[AttnR & 0xFF] >> (AttnR >> 8);
 
 	/* Multiply with interpolated sample */
-	Channel.OutputL = Sample;// (Sample * VolumeL) >> 15;
-	Channel.OutputR = Sample;// (Sample * VolumeR) >> 15;
+	Channel.OutputL = (Sample * VolumeL) >> 15;
+	Channel.OutputR = (Sample * VolumeR) >> 15;
 }
 
 void YMF278B::UpdateInterpolator(CHANNEL& Channel)

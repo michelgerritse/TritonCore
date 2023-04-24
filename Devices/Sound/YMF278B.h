@@ -82,6 +82,7 @@ private:
 		uint32_t	LfoCounter;	/* LFO counter */
 		uint32_t	LfoPeriod;	/* LFO period */
 		uint8_t		LfoStep;	/* LFO step counter (8-bit) */
+		uint32_t	LfoReset;	/* LFO reset flag */
 		uint32_t	PmDepth;	/* Vibrato depth (3-bit) */
 		uint32_t	AmDepth;	/* Tremolo depth (3-bit) */
 
@@ -91,9 +92,10 @@ private:
 	};
 
 	CHANNEL		m_Channel[24];
-	uint8_t		m_AddrLatchFM0;		/* FM array 0 address latch */
-	uint8_t		m_AddrLatchFM1;		/* FM array 1 address latch */
-	uint8_t		m_AddrLatchPCM;		/* PCM address latch */
+	uint8_t		m_AddressLatch;
+
+	uint32_t	m_New;				/* OPL3 enable flag */
+	uint32_t	m_New2;				/* OPL4 enable flag */
 
 	pair32_t	m_MemoryAddress;	/* Memory address register (22-bit) */
 	uint32_t	m_MemoryAccess;		/* Memory access mode flag */
