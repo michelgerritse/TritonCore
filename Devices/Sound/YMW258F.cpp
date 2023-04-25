@@ -23,15 +23,12 @@ See LICENSE.txt in the root directory of this source tree.
 	- 16-stage pan control
 	- Envelope control
 	- PM and AM LFO (a.k.a vibrato and tremolo)
-	- Interface up to 4MB of ROM + SRAM (22-bit address bus + 8-bit data bus)
+	- Interface up to 4MB of ROM or SRAM (22-bit address bus + 8-bit data bus)
 	
 	Things to validate:
 	- LFO validation
 	- TL interpolation
 	- Attenuation (Envelope has a -96dB - 0dB range, TL and PAN a -48dB - 0 range but something is not adding up)
-	
-	Things to do:
-	- Implement a ADSR::Off state, to speed up code execution for non-playing channels
 
 	Sega banking information provided by Valley Bell:
 	https://github.com/ValleyBell/libvgm
@@ -77,7 +74,7 @@ void YMW258F::Reset(ResetType Type)
 		memset(&Channel, 0, sizeof(CHANNEL));
 
 		/* Default envelope state */
-		Channel.EgPhase = ADSR::Release;
+		Channel.EgPhase = ADSR::Off;
 		Channel.EgLevel = 0x3FF;
 
 		/* Default LFO period */
@@ -241,7 +238,7 @@ void YMW258F::WriteChannel(uint32_t Address, uint32_t Register, uint32_t Data)
 		break;
 
 	case 0x04: /* Channel control */
-		Channel.KeyPending = Data >> 7;
+		ProcessKeyOnOff(Channel, Data >> 7);
 
 		assert((Data & 0x7F) == 0); /* Test for undocumented bits */
 		break;
@@ -279,62 +276,52 @@ void YMW258F::LoadWaveTable(CHANNEL& Channel)
 	/* Read wave table header. Each header is 12-bytes */
 	uint32_t Offset = Channel.WaveNr.u16 * 12;
 
-	/* Byte 0: Wave format + start address [21:16] */
+	/* Wave format (2-bit) */
 	Channel.Format = m_Memory[Offset] >> 6;
-	Channel.Start.u8hl = m_Memory[Offset] & 0x3F;
 
-	assert((m_Memory[Offset] & 0xC0) == 0); /* Test for undocumented bits */
+	/* Start address (22-bit) */
+	Channel.Start = ((m_Memory[Offset] << 16) | (m_Memory[Offset + 1] << 8) | m_Memory[Offset + 2]) & 0x3FFFFF;
 
-	/* Byte 1: Start address [15:8] */
-	Channel.Start.u8lh = m_Memory[Offset + 1];
+	/* Loop address (16-bit) */
+	Channel.Loop = (m_Memory[Offset + 3] << 8) | m_Memory[Offset + 4];
 
-	/* Byte 2: Start address [7:0] */
-	Channel.Start.u8ll = m_Memory[Offset + 2];
+	/* End address (16-bit) */
+	Channel.End = 0x10000 - ((m_Memory[Offset + 5] << 8) | m_Memory[Offset + 6]);
 
-	/* Byte 3: Loop address [15:8] */
-	Channel.Loop.u8h = m_Memory[Offset + 3];
-
-	/* Byte 4: Loop address [7:0] */
-	Channel.Loop.u8l = m_Memory[Offset + 4];
-
-	/* Byte 5 + 6: End address [15:0] */
-	Channel.End = (m_Memory[Offset + 5] << 8) | m_Memory[Offset + 6];
-	Channel.End = ~(Channel.End - 1);
-
-	/* Byte 7: LFO + VIB */
+	/* LFO (3-bit) + Vibrato (3-bit) */
 	Channel.LfoPeriod = YM::AWM::LfoPeriod[(m_Memory[Offset + 7] >> 3) & 0x07];
 	Channel.PmDepth = m_Memory[Offset + 7] & 0x07;
 
-	/* Byte 8: Attack rate + decay rate  */
+	/* Attack rate (4-bit) + Decay rate (4-bit)  */
 	Channel.Rate[ADSR::Attack] = m_Memory[Offset + 8] >> 4;
 	Channel.Rate[ADSR::Decay] = m_Memory[Offset + 8] & 0x0F;
 
-	/* Byte 9: Decay level + sustain rate */
+	/* Decay level (4-bit) + Sustain rate (4-bit) */
 	Channel.Rate[ADSR::Sustain] = m_Memory[Offset + 9] & 0x0F;
+	Channel.DL = (m_Memory[Offset + 9] & 0xF0) << 1;
 
 	/* If all DL bits are set, DL is -93dB. See OPL4 manual page 20 */
-	Channel.DL = (m_Memory[Offset + 9] & 0xF0) << 1;
 	if (Channel.DL == 0x1E0) Channel.DL = 0x3E0;
 
-	/* Byte 10: Rate correction + release rate */
+	/* Rate correction (4-bit) + Release rate (4-bit) */
 	Channel.RC = m_Memory[Offset + 10] >> 4;
 	Channel.Rate[ADSR::Release] = m_Memory[Offset + 10] & 0x0F;
 
-	/* Byte 11: AM */
+	/* Tremolo (3-bit) */
 	Channel.AmDepth = m_Memory[Offset + 11] & 0x07;
 
 	/* Appply banking (Sega MultiPCM only) */
 	if (m_Banking)
 	{
-		if (Channel.Start.u32 & 0x100000)
+		if (Channel.Start & 0x100000)
 		{
-			if (Channel.Start.u32 & 0x080000)
+			if (Channel.Start & 0x080000)
 			{
-				Channel.Start.u32 = (Channel.Start.u32 & 0x7FFFF) | m_Bank1;
+				Channel.Start = (Channel.Start & 0x7FFFF) | m_Bank1;
 			}
 			else
 			{
-				Channel.Start.u32 = (Channel.Start.u32 & 0x7FFFF) | m_Bank0;
+				Channel.Start = (Channel.Start & 0x7FFFF) | m_Bank0;
 			}
 		}
 	}
@@ -357,13 +344,17 @@ void YMW258F::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer
 		for (auto& Channel : m_Channel)
 		{
 			UpdateLFO(Channel);
-			UpdateAddressGenerator(Channel);
-			UpdateInterpolator(Channel);
-			UpdateEnvelopeGenerator(Channel);
-			UpdateMultiplier(Channel);
+			
+			if (Channel.EgPhase != ADSR::Off)
+			{
+				UpdateAddressGenerator(Channel);
+				UpdateInterpolator(Channel);
+				UpdateEnvelopeGenerator(Channel);
+				UpdateMultiplier(Channel);
 
-			OutL += Channel.OutputL;
-			OutR += Channel.OutputR;
+				OutL += Channel.OutputL;
+				OutR += Channel.OutputR;
+			}
 		}
 
 		/* Global counter increments */
@@ -390,12 +381,12 @@ int16_t YMW258F::ReadSample(CHANNEL& Channel)
 	switch (Channel.Format)
 	{
 	case 0: /* 8-bit PCM */
-		Offset = Channel.Start.u32 + Channel.SampleCount;
+		Offset = Channel.Start + Channel.SampleCount;
 		Sample = m_Memory[Offset] << 8;
 		break;
 
 	case 1: /* 12-bit PCM */
-		Offset = Channel.Start.u32 + ((Channel.SampleCount * 3) / 2);
+		Offset = Channel.Start + ((Channel.SampleCount * 3) / 2);
 
 		if (Channel.SampleCount & 0x01)
 		{
@@ -408,7 +399,7 @@ int16_t YMW258F::ReadSample(CHANNEL& Channel)
 		break;
 
 	case 2: /* 16-bit PCM */
-		Offset = Channel.Start.u32 + (Channel.SampleCount * 2);
+		Offset = Channel.Start + (Channel.SampleCount * 2);
 
 		Sample = (m_Memory[Offset + 0] << 8) | m_Memory[Offset + 1];
 		break;
@@ -454,7 +445,7 @@ void YMW258F::UpdateAddressGenerator(CHANNEL& Channel)
 		if (Channel.SampleCount >= Channel.End)
 		{
 			/* Loop */
-			Channel.SampleCount = Channel.Loop.u16;
+			Channel.SampleCount = Channel.Loop;
 		}
 
 		/* Load new sample */
@@ -464,10 +455,7 @@ void YMW258F::UpdateAddressGenerator(CHANNEL& Channel)
 }
 
 void YMW258F::UpdateEnvelopeGenerator(CHANNEL& Channel)
-{
-	/* Process pending Key On/ Off events */
-	if (Channel.KeyOn != Channel.KeyPending) ProcessKeyOnOff(Channel);
-	
+{	
 	int32_t Level = Channel.EgLevel;
 
 	/* Get adjusted / key scaled rate */
@@ -510,7 +498,11 @@ void YMW258F::UpdateEnvelopeGenerator(CHANNEL& Channel)
 			Level += AttnInc;
 
 			/* Limit to maximum attenuation */
-			if (Level > 0x3FF) Level = 0x3FF;
+			if (Level > 0x3FF)
+			{
+				Level = 0x3FF;
+				Channel.EgPhase = ADSR::Off;
+			}
 
 			if (Channel.EgPhase == ADSR::Decay)
 			{
@@ -591,38 +583,41 @@ void YMW258F::UpdateInterpolator(CHANNEL& Channel)
 	Channel.Sample = ((T0 * Channel.SampleT0) + (T1 * Channel.SampleT1)) >> 16;
 }
 
-void YMW258F::ProcessKeyOnOff(CHANNEL& Channel)
+void YMW258F::ProcessKeyOnOff(CHANNEL& Channel, uint32_t NewState)
 {
-	if (Channel.KeyPending) /* Key On */
+	if (Channel.KeyOn != NewState)
 	{
-		/* Reset sample counter */
-		Channel.SampleCount = 0;
-		Channel.SampleDelta = 0;
-
-		/* Move envelope to attack phase */
-		Channel.EgPhase = ADSR::Attack;
-
-		/* Instant attack */
-		if (CalculateRate(Channel, Channel.Rate[ADSR::Attack]) == 63)
+		if (NewState) /* Key On */
 		{
-			/* Instant minimum attenuation */
-			Channel.EgLevel = 0;
+			/* Reset sample counter */
+			Channel.SampleCount = 0;
+			Channel.SampleDelta = 0;
 
-			/* Move to decay or sustain phase */
-			Channel.EgPhase = Channel.DL ? ADSR::Decay : ADSR::Sustain;
+			/* Move envelope to attack phase */
+			Channel.EgPhase = ADSR::Attack;
+
+			/* Instant attack */
+			if (CalculateRate(Channel, Channel.Rate[ADSR::Attack]) == 63)
+			{
+				/* Instant minimum attenuation */
+				Channel.EgLevel = 0;
+
+				/* Move to decay or sustain phase */
+				Channel.EgPhase = Channel.DL ? ADSR::Decay : ADSR::Sustain;
+			}
+
+			/* Reset sample interpolation */
+			Channel.SampleT0 = 0;
+			Channel.SampleT1 = 0;
+		}
+		else /* Key Off */
+		{
+			/* Move envelope to release phase */
+			Channel.EgPhase = ADSR::Release;
 		}
 
-		/* Reset sample interpolation */
-		Channel.SampleT0 = 0;
-		Channel.SampleT1 = 0;
+		Channel.KeyOn = NewState;
 	}
-	else /* Key Off */
-	{
-		/* Move envelope to release phase */
-		Channel.EgPhase = ADSR::Release;
-	}
-
-	Channel.KeyOn = Channel.KeyPending;
 }
 
 uint8_t YMW258F::CalculateRate(CHANNEL& Channel, uint8_t Rate)

@@ -48,7 +48,8 @@ private:
 		Attack = 0,
 		Decay,
 		Sustain,
-		Release
+		Release,
+		Off
 	};
 
 	struct CHANNEL
@@ -63,7 +64,6 @@ private:
 		uint32_t	TargetTL;	/* Interpolated TL */
 		
 		uint32_t	KeyOn;		/* Key On / Off flag */
-		uint32_t	KeyPending;	/* Key On / Off pending state */
 		uint32_t	EgPhase;	/* Envelope phase */
 		uint32_t	EgLevel;	/* Envelope output level (10-bit) */
 
@@ -71,9 +71,9 @@ private:
 		uint32_t	SampleDelta;	/* Sample address (fractional) */
 		
 		uint32_t	Format;		/* Wave format (2-bit) */
-		pair32_t	Start;		/* Start address (22-bit) */
-		pair16_t	Loop;		/* Loop address (16-bit) */
-		uint16_t	End;		/* End address (16-bit) */
+		uint32_t	Start;		/* Start address (22-bit) */
+		uint32_t	Loop;		/* Loop address (16-bit) */
+		uint32_t	End;		/* End address (16-bit) */
 		uint8_t		Rate[4];	/* ADSR rates (4-bit) */
 		uint32_t	DL;			/* Decay level (4-bit) */
 		uint32_t	RC;			/* Rate correction (4-bit) */
@@ -117,7 +117,7 @@ private:
 	void	UpdateMultiplier(CHANNEL& Channel);
 	void	UpdateInterpolator(CHANNEL& Channel);
 	
-	void	ProcessKeyOnOff(CHANNEL& Channel);
+	void	ProcessKeyOnOff(CHANNEL& Channel, uint32_t NewState);
 	uint8_t CalculateRate(CHANNEL& Channel, uint8_t Rate);
 };
 
