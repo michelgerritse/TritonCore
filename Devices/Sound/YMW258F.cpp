@@ -297,11 +297,9 @@ void YMW258F::LoadWaveTable(CHANNEL& Channel)
 	/* Byte 4: Loop address [7:0] */
 	Channel.Loop.u8l = m_Memory[Offset + 4];
 
-	/* Byte 5: End address [15:8] */
-	Channel.End.u8h = m_Memory[Offset + 5];
-
-	/* Byte 6: End address [7:0] */
-	Channel.End.u8l = m_Memory[Offset + 6];
+	/* Byte 5 + 6: End address [15:0] */
+	Channel.End = (m_Memory[Offset + 5] << 8) | m_Memory[Offset + 6];
+	Channel.End = ~(Channel.End - 1);
 
 	/* Byte 7: LFO + VIB */
 	Channel.LfoPeriod = YM::AWM::LfoPeriod[(m_Memory[Offset + 7] >> 3) & 0x07];
@@ -359,7 +357,7 @@ void YMW258F::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer
 		for (auto& Channel : m_Channel)
 		{
 			UpdateLFO(Channel);
-			UpdatePhaseGenerator(Channel);
+			UpdateAddressGenerator(Channel);
 			UpdateInterpolator(Channel);
 			UpdateEnvelopeGenerator(Channel);
 			UpdateMultiplier(Channel);
@@ -392,14 +390,14 @@ int16_t YMW258F::ReadSample(CHANNEL& Channel)
 	switch (Channel.Format)
 	{
 	case 0: /* 8-bit PCM */
-		Offset = Channel.Start.u32 + Channel.Addr.u16h;
+		Offset = Channel.Start.u32 + Channel.SampleCount;
 		Sample = m_Memory[Offset] << 8;
 		break;
 
 	case 1: /* 12-bit PCM */
-		Offset = Channel.Start.u32 + ((Channel.Addr.u16h * 3) / 2);
+		Offset = Channel.Start.u32 + ((Channel.SampleCount * 3) / 2);
 
-		if (Channel.Addr.u16h & 0x01)
+		if (Channel.SampleCount & 0x01)
 		{
 			Sample = (m_Memory[Offset + 2] << 8) | ((m_Memory[Offset + 1] & 0x0F) << 4);
 		}
@@ -410,7 +408,7 @@ int16_t YMW258F::ReadSample(CHANNEL& Channel)
 		break;
 
 	case 2: /* 16-bit PCM */
-		Offset = Channel.Start.u32 + (Channel.Addr.u16h * 2);
+		Offset = Channel.Start.u32 + (Channel.SampleCount * 2);
 
 		Sample = (m_Memory[Offset + 0] << 8) | m_Memory[Offset + 1];
 		break;
@@ -434,22 +432,34 @@ void YMW258F::UpdateLFO(CHANNEL& Channel)
 	}
 }
 
-void YMW258F::UpdatePhaseGenerator(CHANNEL& Channel)
+void YMW258F::UpdateAddressGenerator(CHANNEL& Channel)
 {
 	/* Vibrato lookup */
 	int32_t Vibrato = YM::AWM::VibratoTable[Channel.LfoStep >> 2][Channel.PmDepth]; /* 64 steps */
 
-	/* Calculate phase increment */
+	/* Calculate address increment */
 	uint32_t Inc = ((1024 + Channel.FNum + Vibrato) << (8 + Channel.Octave)) >> 3;
 
 	/* Update address counter (16.16) */
-	Channel.Addr.u32 += Inc;
+	Channel.SampleDelta += Inc;
 
-	/* Check for end address (ignore fractional part) */
-	if ((Channel.Addr.u16h + Channel.End.u16) > 0xFFFF)
+	/* Check for delta overflow */
+	if (Channel.SampleDelta >> 16)
 	{
-		/* Loop */
-		Channel.Addr.u16h += (Channel.End.u16 + Channel.Loop.u16);
+		/* Update sample counter */
+		Channel.SampleCount += (Channel.SampleDelta >> 16);
+		Channel.SampleDelta &= 0xFFFF;
+
+		/* Check for end address */
+		if (Channel.SampleCount >= Channel.End)
+		{
+			/* Loop */
+			Channel.SampleCount = Channel.Loop.u16;
+		}
+
+		/* Load new sample */
+		Channel.SampleT0 = Channel.SampleT1;
+		Channel.SampleT1 = ReadSample(Channel);
 	}
 }
 
@@ -574,17 +584,8 @@ void YMW258F::UpdateMultiplier(CHANNEL& Channel)
 
 void YMW258F::UpdateInterpolator(CHANNEL& Channel)
 {
-	uint32_t T0 = 0x10000 - Channel.Addr.u16l;
-	uint32_t T1 = Channel.Addr.u16l;
-
-	if (Channel.OldAddr ^ Channel.Addr.u16h) /* We moved to a new sample address */
-	{
-		Channel.SampleT0 = Channel.SampleT1;
-		Channel.SampleT1 = ReadSample(Channel);
-		Channel.OldAddr = Channel.Addr.u16h;
-	}
-
-	//FIXME: Virtua Cop - 07 Underground Weapon Storage + 14 Game Over are having interpolation issues
+	uint32_t T0 = 0x10000 - Channel.SampleDelta;
+	uint32_t T1 = Channel.SampleDelta;
 
 	/* Linear sample interpolation */
 	Channel.Sample = ((T0 * Channel.SampleT0) + (T1 * Channel.SampleT1)) >> 16;
@@ -594,8 +595,9 @@ void YMW258F::ProcessKeyOnOff(CHANNEL& Channel)
 {
 	if (Channel.KeyPending) /* Key On */
 	{
-		/* Reset address counter */
-		Channel.Addr.u32 = 0;
+		/* Reset sample counter */
+		Channel.SampleCount = 0;
+		Channel.SampleDelta = 0;
 
 		/* Move envelope to attack phase */
 		Channel.EgPhase = ADSR::Attack;
@@ -613,7 +615,6 @@ void YMW258F::ProcessKeyOnOff(CHANNEL& Channel)
 		/* Reset sample interpolation */
 		Channel.SampleT0 = 0;
 		Channel.SampleT1 = 0;
-		Channel.OldAddr = 0xFFFF;
 	}
 	else /* Key Off */
 	{
