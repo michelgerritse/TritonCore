@@ -56,7 +56,7 @@ void YMW258F::Reset(ResetType Type)
 	m_CyclesToDo = 0;
 
 	/* Reset latches */
-	m_AddressLatch = 0;
+	m_ChannelLatch = 0;
 	m_RegisterLatch = 0;
 
 	/* Reset counters */
@@ -145,16 +145,14 @@ void YMW258F::Write(uint32_t Address, uint32_t Data)
 	switch (Address & 0x0F) /* 4-bit address bus (A0 - A3) */
 	{
 	case 0x00: /* PCM channel data write */
-		WriteChannel(m_AddressLatch, m_RegisterLatch, Data);
+		WriteChannel(m_ChannelLatch, m_RegisterLatch, Data);
 		break;
 
 	case 0x01: /* PCM channel latch */
-		/* Addresses are mirrored (Virtua Racing uses this) */
-		m_AddressLatch = Data & 0x1F;
+		m_ChannelLatch = Data;
 		break;
 
 	case 0x02: /* PCM register latch */
-		/* Virtua Racing writes to 0x09 and 0x0A, which we will ignore for now */
 		m_RegisterLatch = Data;
 		break;
 
@@ -181,9 +179,9 @@ void YMW258F::Write(uint32_t Address, uint32_t Data)
 	}
 }
 
-void YMW258F::WriteChannel(uint32_t Address, uint32_t Register, uint32_t Data)
+void YMW258F::WriteChannel(uint8_t ChannelNr, uint8_t Register, uint8_t Data)
 {
-	/*	Address to channel mapping:
+	/*	Channel mapping:
 		0x00: 00	0x08: 07	0x10: 14	0x18: 21
 		0x01: 01	0x09: 08	0x11: 15	0x19: 22
 		0x02: 02	0x0A: 09	0x12: 16	0x1A: 23
@@ -194,20 +192,15 @@ void YMW258F::WriteChannel(uint32_t Address, uint32_t Register, uint32_t Data)
 		0x07: --	0x0F: --	0x17: --	0x1F: --
 	*/
 
-	/* Invalid channel selected */
-	if ((Address & 0x07) == 0x07) return;
+	/* Channel validation */
+	if ((ChannelNr & 0x07) == 0x07) return;
 
-	/* Invalid register selected ? */
-	if (Register > 7)
-	{
-		//__debugbreak();
-		return;
-	}
+	/* Channel mirroring (Virtua Racing uses this) */
+	ChannelNr &= 0x1F;
 
-	/* Map address to channel */
-	auto& Channel = m_Channel[Address - (Address >> 3)];
+	auto& Channel = m_Channel[ChannelNr - (ChannelNr >> 3)];
 
-	switch (Register)
+	switch (Register & 0x0F) /* Are registers mirrored ? */
 	{
 	case 0x00: /* Pan */
 		Channel.PanAttnL = YM::AWM::PanAttnL[Data >> 4];
@@ -267,6 +260,16 @@ void YMW258F::WriteChannel(uint32_t Address, uint32_t Register, uint32_t Data)
 		Channel.AmDepth = Data & 0x07;
 
 		assert((Data & 0xF8) == 0); /* Test for undocumented bits */
+		break;
+
+	case 0x08:
+	case 0x09: /* Virtua Racing writes 0x0F for all channels */
+	case 0x0A: /* Virtua Racing writes 0x07 for some channels */
+	case 0x0B:
+	case 0x0C:
+	case 0x0D:
+	case 0x0E:
+	case 0x0F:
 		break;
 	}
 }

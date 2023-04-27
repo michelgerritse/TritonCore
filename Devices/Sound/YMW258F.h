@@ -92,7 +92,7 @@ private:
 	};
 
 	CHANNEL		m_Channel[28];
-	uint8_t		m_AddressLatch;		/* PCM address latch */
+	uint8_t		m_ChannelLatch;		/* PCM address latch */
 	uint8_t		m_RegisterLatch;	/* PCM register latch */
 	uint32_t	m_EnvelopeCounter;	/* Global envelope counter */
 	uint32_t	m_InterpolCounter;	/* Global TL interpolation counter */
@@ -107,7 +107,7 @@ private:
 
 	std::vector<uint8_t> m_Memory;
 
-	void	WriteChannel(uint32_t Address, uint32_t Register, uint32_t Data);
+	void	WriteChannel(uint8_t ChannelNr, uint8_t Register, uint8_t Data);
 	void	LoadWaveTable(CHANNEL& Channel);
 	int16_t ReadSample(CHANNEL& Channel);
 	
