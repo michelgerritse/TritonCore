@@ -25,7 +25,7 @@ Other IDEs have not been tested, but it should be trivial to add this code to yo
 TritonCore is release under the BSD-3-Clause license.
 Please see [LICENSE.txt](LICENSE.txt).
 
-## Credits
+## Thanks
 I would like to thank:
 - [Valley Bell](https://github.com/ValleyBell/libvgm)
 - The folks at [VGMRips](https://vgmrips.net/packs/)
