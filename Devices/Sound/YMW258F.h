@@ -62,10 +62,13 @@ private:
 		uint32_t	PanAttnR;	/* Pan attenuation right */
 		uint32_t	TL;			/* Total Level (7-bit) */
 		uint32_t	TargetTL;	/* Interpolated TL */
+		uint32_t	RC;			/* Rate correction (4-bit) */
 		
 		uint32_t	KeyOn;		/* Key On / Off flag */
+		uint32_t	EgRate[4];	/* Envelope rates (4-bit) */
 		uint32_t	EgPhase;	/* Envelope phase */
-		uint32_t	EgLevel;	/* Envelope output level (10-bit) */
+		uint16_t	EgLevel;	/* Envelope output level (10-bit) */
+		uint32_t	DL;			/* Decay level (4-bit) */
 
 		uint32_t	SampleCount;	/* Sample address (whole part) */
 		uint32_t	SampleDelta;	/* Sample address (fractional) */
@@ -74,9 +77,6 @@ private:
 		uint32_t	Start;		/* Start address (22-bit) */
 		uint32_t	Loop;		/* Loop address (16-bit) */
 		uint32_t	End;		/* End address (16-bit) */
-		uint8_t		Rate[4];	/* ADSR rates (4-bit) */
-		uint32_t	DL;			/* Decay level (4-bit) */
-		uint32_t	RC;			/* Rate correction (4-bit) */
 
 		uint32_t	LfoCounter;	/* LFO counter */
 		uint32_t	LfoPeriod;	/* LFO period */

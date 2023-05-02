@@ -296,11 +296,11 @@ void YMW258F::LoadWaveTable(CHANNEL& Channel)
 	Channel.PmDepth = m_Memory[Offset + 7] & 0x07;
 
 	/* Attack rate (4-bit) + Decay rate (4-bit)  */
-	Channel.Rate[ADSR::Attack] = m_Memory[Offset + 8] >> 4;
-	Channel.Rate[ADSR::Decay] = m_Memory[Offset + 8] & 0x0F;
+	Channel.EgRate[ADSR::Attack] = m_Memory[Offset + 8] >> 4;
+	Channel.EgRate[ADSR::Decay] = m_Memory[Offset + 8] & 0x0F;
 
 	/* Decay level (4-bit) + Sustain rate (4-bit) */
-	Channel.Rate[ADSR::Sustain] = m_Memory[Offset + 9] & 0x0F;
+	Channel.EgRate[ADSR::Sustain] = m_Memory[Offset + 9] & 0x0F;
 	Channel.DL = (m_Memory[Offset + 9] & 0xF0) << 1;
 
 	/* If all DL bits are set, DL is -93dB. See OPL4 manual page 20 */
@@ -308,7 +308,7 @@ void YMW258F::LoadWaveTable(CHANNEL& Channel)
 
 	/* Rate correction (4-bit) + Release rate (4-bit) */
 	Channel.RC = m_Memory[Offset + 10] >> 4;
-	Channel.Rate[ADSR::Release] = m_Memory[Offset + 10] & 0x0F;
+	Channel.EgRate[ADSR::Release] = m_Memory[Offset + 10] & 0x0F;
 
 	/* Tremolo (3-bit) */
 	Channel.AmDepth = m_Memory[Offset + 11] & 0x07;
@@ -459,10 +459,10 @@ void YMW258F::UpdateAddressGenerator(CHANNEL& Channel)
 
 void YMW258F::UpdateEnvelopeGenerator(CHANNEL& Channel)
 {	
-	int32_t Level = Channel.EgLevel;
+	uint16_t Level = Channel.EgLevel;
 
 	/* Get adjusted / key scaled rate */
-	uint32_t Rate = CalculateRate(Channel, Channel.Rate[Channel.EgPhase]);
+	uint32_t Rate = CalculateRate(Channel, Channel.EgRate[Channel.EgPhase]);
 
 	/* Get EG counter resolution */
 	uint32_t Shift = YM::OPL::EgShift[Rate];
@@ -478,22 +478,13 @@ void YMW258F::UpdateEnvelopeGenerator(CHANNEL& Channel)
 
 		if (Channel.EgPhase == ADSR::Attack) /* Exponential decrease (0x3FF -> 0) */
 		{
-			/* A rate of 63 has a special meaning: it forces the ADSR phase to instantly move from
-			   attack to decay. This is only evaluated during key-on events. This implies that the attack phase
-			   can be stalled if the rate is changed to 63 while already (slowly) attacking */
-
 			if (Rate < 63)
 			{
 				Level += (~Level * AttnInc) >> 4;
 
-				if (Level <= 0)
-				{
-					/* We've reached minimum level, move to decay phase
-					   or move to sustain phase when decay level is 0 */
-
-					Level = 0;
-					Channel.EgPhase = Channel.DL ? ADSR::Decay : ADSR::Sustain;
-				}
+				/* If we've reached minimum attenuation: move to the decay phase
+				or move to the sustain phase when decay level is 0 */
+				if (Level == 0) Channel.EgPhase = (Channel.DL != 0) ? ADSR::Decay : ADSR::Sustain;
 			}
 		}
 		else /* Linear increase (0 -> 0x3FF) */
@@ -510,11 +501,7 @@ void YMW258F::UpdateEnvelopeGenerator(CHANNEL& Channel)
 			if (Channel.EgPhase == ADSR::Decay)
 			{
 				/* We reached the decay level, move to the sustain phase */
-				if ((uint32_t)Level >= Channel.DL)
-				{
-					Level = Channel.DL;
-					Channel.EgPhase = ADSR::Sustain;
-				}
+				if (Level >= Channel.DL) Channel.EgPhase = ADSR::Sustain;
 			}
 		}
 
@@ -600,7 +587,7 @@ void YMW258F::ProcessKeyOnOff(CHANNEL& Channel, uint32_t NewState)
 			Channel.EgPhase = ADSR::Attack;
 
 			/* Instant attack */
-			if (CalculateRate(Channel, Channel.Rate[ADSR::Attack]) == 63)
+			if (CalculateRate(Channel, Channel.EgRate[ADSR::Attack]) == 63)
 			{
 				/* Instant minimum attenuation */
 				Channel.EgLevel = 0;
