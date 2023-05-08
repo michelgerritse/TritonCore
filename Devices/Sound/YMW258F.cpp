@@ -555,9 +555,9 @@ void YMW258F::UpdateMultiplier(CHANNEL& Channel)
 	AttnL <<= 2;
 	AttnR <<= 2;
 
-	/* linear to dB conversion */
-	uint32_t VolumeL = YM::AWM::PowTable[AttnL & 0xFF] >> (AttnL >> 8);
-	uint32_t VolumeR = YM::AWM::PowTable[AttnR & 0xFF] >> (AttnR >> 8);
+	/* dB to linear conversion (13-bit) */
+	uint32_t VolumeL = YM::ExpTable[AttnL & 0xFF] >> (AttnL >> 8);
+	uint32_t VolumeR = YM::ExpTable[AttnR & 0xFF] >> (AttnR >> 8);
 
 	/* Multiply with interpolated sample */
 	Channel.OutputL = (Sample * VolumeL) >> 15;
