@@ -301,10 +301,11 @@ void YMW258F::LoadWaveTable(CHANNEL& Channel)
 
 	/* Decay level (4-bit) + Sustain rate (4-bit) */
 	Channel.EgRate[ADSR::Sustain] = m_Memory[Offset + 9] & 0x0F;
-	Channel.DL = (m_Memory[Offset + 9] & 0xF0) << 1;
-
+	
 	/* If all DL bits are set, DL is -93dB. See OPL4 manual page 20 */
-	if (Channel.DL == 0x1E0) Channel.DL = 0x3E0;
+	Channel.DL = (m_Memory[Offset + 9] & 0xF0) >> 4;
+	Channel.DL |= (Channel.DL + 1) & 0x10;
+	Channel.DL <<= 5;
 
 	/* Rate correction (4-bit) + Release rate (4-bit) */
 	Channel.RC = m_Memory[Offset + 10] >> 4;
@@ -459,8 +460,6 @@ void YMW258F::UpdateAddressGenerator(CHANNEL& Channel)
 
 void YMW258F::UpdateEnvelopeGenerator(CHANNEL& Channel)
 {	
-	uint16_t Level = Channel.EgLevel;
-
 	/* Get adjusted / key scaled rate */
 	uint32_t Rate = CalculateRate(Channel, Channel.EgRate[Channel.EgPhase]);
 
@@ -470,6 +469,8 @@ void YMW258F::UpdateEnvelopeGenerator(CHANNEL& Channel)
 
 	if ((m_EnvelopeCounter & Mask) == 0) /* Counter overflowed */
 	{
+		uint16_t Level = Channel.EgLevel;
+		
 		/* Get update cycle (8 cycles in total) */
 		uint32_t Cycle = (m_EnvelopeCounter >> Shift) & 0x07;
 
@@ -575,13 +576,17 @@ void YMW258F::UpdateInterpolator(CHANNEL& Channel)
 
 void YMW258F::ProcessKeyOnOff(CHANNEL& Channel, uint32_t NewState)
 {
-	if (Channel.KeyOn != NewState)
+	if (Channel.KeyOn ^ NewState)
 	{
 		if (NewState) /* Key On */
 		{
 			/* Reset sample counter */
 			Channel.SampleCount = 0;
 			Channel.SampleDelta = 0;
+
+			/* Reset sample interpolation */
+			Channel.SampleT0 = 0;
+			Channel.SampleT1 = 0;
 
 			/* Move envelope to attack phase */
 			Channel.EgPhase = ADSR::Attack;
@@ -591,14 +596,10 @@ void YMW258F::ProcessKeyOnOff(CHANNEL& Channel, uint32_t NewState)
 			{
 				/* Instant minimum attenuation */
 				Channel.EgLevel = 0;
-
-				/* Move to decay or sustain phase */
-				Channel.EgPhase = Channel.DL ? ADSR::Decay : ADSR::Sustain;
 			}
 
-			/* Reset sample interpolation */
-			Channel.SampleT0 = 0;
-			Channel.SampleT1 = 0;
+			/* Move to decay or sustain phase */
+			if (Channel.EgLevel == 0) Channel.EgPhase = Channel.DL ? ADSR::Decay : ADSR::Sustain;
 		}
 		else /* Key Off */
 		{
