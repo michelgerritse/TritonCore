@@ -6,6 +6,7 @@ It is part of project Triton, which is not ready for public release yet.
 The following sound devices are emulated:
 - Oki MSM6295
 - Ricoh RF5C68 and RF5C164
+- Sega 32X PWM
 - SegaPCM
 - Texas Instruments SN76489 (family/clones)
 - Yamaha YMF278B (PCM only at this moment)
