@@ -61,7 +61,8 @@ void SEGAPWM::Reset(ResetType Type)
 
 void SEGAPWM::SendExclusiveCommand(uint32_t Command, uint32_t Value)
 {
-
+	/* This is used for VGM DAC streams, just forward the command */
+	Write(Command, Value);
 }
 
 bool SEGAPWM::EnumAudioOutputs(uint32_t OutputNr, AUDIO_OUTPUT_DESC& Desc)
