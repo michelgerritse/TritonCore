@@ -33,6 +33,24 @@ See LICENSE.txt in the root directory of this source tree.
 	- When both channels are OFF, the cycle counter does not operate
 	- When the cycle register is set to 1, no sound will be output
 	- Pulse width can not exceed the cycle time;
+
+	Cheat sheet:
+	------------
+
+	PWM Control Register:
+	
+	| b15 | b14 | b13 | b12 | b11 | b10 | b09 | b08 | b07 | b06 | b05 | b04 | b03 | b02 | b01 | b00 |
+	+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+
+	| --- | --- | --- | --- | TM3 | TM2 | TM1 | TM0 | RTP | --- | --- | --- | RMD0| RMD1| LMD0| LMD1|
+
+	
+	| RMD0| RMD1| OUT |		| LMD0| LMD1| OUT |
+	+-----+-----+-----+		+-----+-----+-----+
+	|  0  |  0  | OFF |		|  0  |  0  | OFF |
+	|  0  |  1  |  R  |		|  0  |  1  |  L  |
+	|  1  |  0  |  L  |		|  1  |  0  |  R  |
+	|  1  |  1  | N/A |		|  1  |  1  | N/A |
+
 */
 
 #define MAX_DIV 256
@@ -155,12 +173,43 @@ void SEGAPWM::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer
 		float ScaleR = (float) (m_PulseWidthR - ZeroLine) / ZeroLine;
 
 		/* Calculate pulse amplitude (assuming 16-bit signed output) */
-		ScaleL *= 0x7FFF;
-		ScaleR *= 0x7FFF;
+		int16_t LMD = (int16_t) (ScaleL * 0x7FFF);
+		int16_t RMD = (int16_t) (ScaleR * 0x7FFF);
 
-		/* Output */
-		OutL = (int16_t) ScaleL;
-		OutR = (int16_t) ScaleR;
+		/* Output mapping */
+		switch (m_PwmControl & 0x0F)
+		{
+		case 0x00: /* RMD = OFF, LMD = OFF (undocumented) */
+		case 0x05: /* RMD = R, LMD = L */
+			OutL = LMD;
+			OutR = RMD;
+			break;
+
+		case 0x01: /* RMD = OFF, LMD = L */
+			OutL = LMD;
+			break;
+
+		case 0x02: /* RMD = OFF, LMD = R */
+			OutR = LMD;
+			break;
+
+		case 0x04: /* RMD = R, LMD = OFF */
+			OutR = RMD;
+			break;
+
+		case 0x08: /* RMD = L, LMD = OFF */
+			OutL = RMD;
+			break;
+
+		case 0x0A: /* RMD = L, LMD = R */
+			OutL = RMD;
+			OutR = LMD;
+			break;
+
+		default:
+			__debugbreak();
+			break;
+		}
 	}
 
 	while (Samples-- != 0)
