@@ -30,7 +30,7 @@ See LICENSE.txt in the root directory of this source tree.
 	- When the FIFO is empty, the last pulled value will be used
 	- When the FIFO is full, the oldest data stored will be discarded
 	- Writing to the mono pulse width register will write to both L + R FIFOs
-	- When both channels are OFF, the cycle counter does not operate
+	- When both channels are OFF, they output normally
 	- When the cycle register is set to 1, no sound will be output
 	- Pulse width can not exceed the cycle time;
 
@@ -131,18 +131,18 @@ void SEGAPWM::Write(uint32_t Address, uint32_t Data)
 
 		/* Lch Pulse Width Register (MD: A15134H, SH2: 20004034H) */
 		case 0x02:
-			m_PulseWidthL = (Data - 1) & 0xFFF;
+			m_PulseWidthL = Data;
 			break;
 
 		/* Rch Pulse Width Register (MD: A15136H, SH2: 20004036H) */
 		case 0x03:
-			m_PulseWidthR = (Data - 1) & 0xFFF;
+			m_PulseWidthR = Data;
 			break;
 
 		/* Mono Pulse Width Register (MD: A15138H, SH2: 20004038H) */
 		case 0x04:
-			m_PulseWidthL = (Data - 1) & 0xFFF;
-			m_PulseWidthR = (Data - 1) & 0xFFF;
+			m_PulseWidthL = Data;
+			m_PulseWidthR = Data;
 			break;
 
 		default:
@@ -168,13 +168,9 @@ void SEGAPWM::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer
 		/* Calculate zero/base line */
 		int16_t ZeroLine = (m_CycleReg / 2);
 		
-		/* Calculate pulse scale (1.0 : -1.0 range) */
-		float ScaleL = (float) (m_PulseWidthL - ZeroLine) / ZeroLine;
-		float ScaleR = (float) (m_PulseWidthR - ZeroLine) / ZeroLine;
-
-		/* Calculate pulse amplitude (assuming 16-bit signed output) */
-		int16_t LMD = (int16_t) (ScaleL * 0x7FFF);
-		int16_t RMD = (int16_t) (ScaleR * 0x7FFF);
+		/* Convert pulse width into a 16-bit signed output */
+		int16_t LMD = ((m_PulseWidthL - ZeroLine) * 0x7FFF) / ZeroLine;
+		int16_t RMD = ((m_PulseWidthR - ZeroLine) * 0x7FFF) / ZeroLine;
 
 		/* Output mapping */
 		switch (m_PwmControl & 0x0F)
