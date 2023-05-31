@@ -75,6 +75,9 @@ void SEGAPWM::Reset(ResetType Type)
 	m_CycleReg = 0;
 	m_PulseWidthL = 0;
 	m_PulseWidthR = 0;
+
+	m_BaseLineL = 0;
+	m_BaseLineR = 0;
 }
 
 void SEGAPWM::SendExclusiveCommand(uint32_t Command, uint32_t Value)
@@ -161,16 +164,16 @@ void SEGAPWM::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer
 
 	if (m_CycleReg != 0)
 	{
-		/* Limit pulse width (required by some games e.g Tempo) */
-		if (m_PulseWidthL > m_CycleReg) m_PulseWidthL = m_CycleReg;
-		if (m_PulseWidthR > m_CycleReg) m_PulseWidthR = m_CycleReg;
-
-		/* Calculate zero/base line */
-		int16_t ZeroLine = (m_CycleReg / 2);
+		int16_t LMD = 0;
+		int16_t RMD = 0;
 		
-		/* Convert pulse width into a 16-bit signed output */
-		int16_t LMD = ((m_PulseWidthL - ZeroLine) * 0x7FFF) / ZeroLine;
-		int16_t RMD = ((m_PulseWidthR - ZeroLine) * 0x7FFF) / ZeroLine;
+		/* Calculate zero/base line (use first sample written to avoid clicks) */
+		if (m_BaseLineL == 0) m_BaseLineL = m_PulseWidthL;
+		if (m_BaseLineR == 0) m_BaseLineR = m_PulseWidthR;
+		
+		/* Convert pulse width into 16-bit signed output */
+		if (m_BaseLineL) LMD = ((m_PulseWidthL - m_BaseLineL) * 0x7FFF) / m_BaseLineL;
+		if (m_BaseLineR) RMD = ((m_PulseWidthR - m_BaseLineR) * 0x7FFF) / m_BaseLineR;
 
 		/* Output mapping */
 		switch (m_PwmControl & 0x0F)

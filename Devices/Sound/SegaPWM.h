@@ -36,10 +36,12 @@ public:
 	void			Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer);
 
 private:
-	uint16_t	m_PwmControl;		/* PWM Control Register */
-	uint16_t	m_CycleReg;			/* Cycle Register */
+	uint32_t	m_PwmControl;		/* PWM Control Register */
+	uint32_t	m_CycleReg;			/* Cycle Register */
 	 int16_t	m_PulseWidthL;		/* Pulse Width L Register */
 	 int16_t	m_PulseWidthR;		/* Pulse Width R Register */
+	 int16_t	m_BaseLineL;
+	 int16_t	m_BaseLineR;
 	
 	uint32_t	m_ClockSpeed;
 	uint32_t	m_ClockDivider;
