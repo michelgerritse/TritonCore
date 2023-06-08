@@ -31,4 +31,5 @@ Please see [LICENSE.txt](LICENSE.txt).
 I would like to thank:
 - [Valley Bell](https://github.com/ValleyBell/libvgm)
 - The folks at [VGMRips](https://vgmrips.net/packs/)
+- [nukeykt](https://github.com/nukeykt) 
 - The development team of [MAME](https://www.mamedev.org/)
