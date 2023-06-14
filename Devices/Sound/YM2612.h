@@ -138,9 +138,7 @@ private:
 
 	void		PrepareSlot(uint32_t SlotId);
 	void		UpdatePhaseGenerator(uint32_t SlotId);
-	void		UpdateEnvelopeGenerator1(uint32_t SlotId);
-	void		UpdateEnvelopeGenerator2(uint32_t SlotId);
-	void		UpdateEnvelopeGenerator3(uint32_t SlotId);
+	void		UpdateEnvelopeGenerator(uint32_t SlotId);
 	void		UpdateOperatorUnit(uint32_t SlotId);
 	void		UpdateAccumulator(uint32_t SlotId);
 	void		UpdateLFO();

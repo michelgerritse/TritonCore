@@ -490,6 +490,8 @@ void YM2612::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
 
 		/* Update Envelope Generator clock */
 		m_EgClock = (m_EgClock + 1) % 3;
+		
+		/* Update Envelope Generator counter */
 		m_EgCounter += (m_EgClock >> 1);
 		m_EgCounter += (m_EgCounter >> 12); /* Overflow bug in the OPN unit */
 		m_EgCounter &= 0xFFF;
@@ -499,9 +501,7 @@ void YM2612::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
 		{
 			PrepareSlot(Slot);
 			UpdatePhaseGenerator(Slot);
-			UpdateEnvelopeGenerator1(Slot);
-			if (m_EgClock == 2) UpdateEnvelopeGenerator2(Slot);
-			UpdateEnvelopeGenerator3(Slot);
+			UpdateEnvelopeGenerator(Slot);
 			UpdateOperatorUnit(Slot);
 		}
 
@@ -595,16 +595,22 @@ void YM2612::UpdatePhaseGenerator(uint32_t SlotId)
 	Slot.PgPhase = (Slot.PgPhase + Inc) & 0xFFFFF;
 }
 
-void YM2612::UpdateEnvelopeGenerator1(uint32_t SlotId)
+void YM2612::UpdateEnvelopeGenerator(uint32_t SlotId)
 {
+	auto& Chan = m_Channel[SlotId >> 2];
 	auto& Slot = m_Slot[SlotId];
-	
+
+	/*-------------------------------------*/
+	/* Step 0: Key On / Off event handling */
+	/*-------------------------------------*/
 	ProcessKeyEvent(SlotId);
 
-	/* SSG-EG update cycle */
+	/*-----------------------------*/
+	/* Step 1: SSG-EG update cycle */
+	/*-----------------------------*/
 	if ((Slot.EgLevel >> 9) & Slot.SsgEnable)
-	{					
-		if (Slot.EgPhase ^ 0x03) /* Attack, decay or sustain phase */
+	{
+		if (Slot.KeyOn) /* Attack, decay or sustain phase */
 		{
 			if (Slot.SsgEgHld) /* Hold mode */
 			{
@@ -612,7 +618,7 @@ void YM2612::UpdateEnvelopeGenerator1(uint32_t SlotId)
 				Slot.SsgEgInvOut = Slot.SsgEgInv ^ Slot.SsgEgAlt;
 			}
 			else /* Repeating mode */
-			{	
+			{
 				StartEnvelope(SlotId);
 
 				/* Flip output inversion flag (if alternating) */
@@ -628,67 +634,67 @@ void YM2612::UpdateEnvelopeGenerator1(uint32_t SlotId)
 			Slot.EgLevel = 0x3FF;
 		}
 	}
-}
 
-void YM2612::UpdateEnvelopeGenerator2(uint32_t SlotId)
-{
-	auto& Slot = m_Slot[SlotId];
-
-	/* Get key scaled rate */
-	uint32_t Rate = CalculateRate(Slot.EgRate[Slot.EgPhase], Slot.KeyCode, Slot.KeyScale);
-
-	/* Get EG counter resolution */
-	uint32_t Shift = YM::OPN::EgShift[Rate];
-	uint32_t Mask = (1 << Shift) - 1;
-
-	if ((m_EgCounter & Mask) == 0) /* Counter overflowed */
+	/*-------------------------------*/
+	/* Step 2: Envelope update cycle */
+	/*-------------------------------*/
+	if (m_EgClock == 2)
 	{
-		uint16_t Level = Slot.EgLevel;
-		
-		/* Get update cycle (8 cycles in total) */
-		uint32_t Cycle = (m_EgCounter >> Shift) & 0x07;
-
-		/* Lookup attenuation adjustment */
-		uint32_t AttnInc = YM::OPN::EgLevelAdjust[Rate][Cycle];
-
-		if (Slot.EgPhase == ADSR::Attack) /* Exponential attack */
+		/* When attacking, move to the decay phase when attenuation level is minimal */
+		if ((Slot.EgPhase | Slot.EgLevel) == 0)
 		{
-			if (Rate < 62)
-			{
-				Level += ((~Level * AttnInc) >> 4);
-
-				/* Move to decay or sustain phase */
-				if (Level == 0) Slot.EgPhase = Slot.SustainLvl ? ADSR::Decay : ADSR::Sustain;
-			}
+			Slot.EgPhase = ADSR::Decay;
 		}
-		else /* Linear decay */
-		{			
-			/* When SSG-EG is active, don't update once we hit 0x200 */
-			if (((Level >> 9) & Slot.SsgEnable) == 0)
+
+		/* If we reached the sustain level, move to the sustain phase */
+		if ((Slot.EgPhase == ADSR::Decay) && (Slot.EgLevel >= Slot.SustainLvl))
+		{
+			 Slot.EgPhase = ADSR::Sustain;
+		}
+
+		/* Get key scaled rate */
+		uint32_t Rate = CalculateRate(Slot.EgRate[Slot.EgPhase], Slot.KeyCode, Slot.KeyScale);
+
+		/* Get EG counter resolution */
+		uint32_t Shift = YM::OPN::EgShift[Rate];
+		uint32_t Mask = (1 << Shift) - 1;
+
+		if ((m_EgCounter & Mask) == 0) /* Counter overflowed */
+		{
+			uint16_t Level = Slot.EgLevel;
+
+			/* Get update cycle (8 cycles in total) */
+			uint32_t Cycle = (m_EgCounter >> Shift) & 0x07;
+
+			/* Lookup attenuation adjustment */
+			uint32_t AttnInc = YM::OPN::EgLevelAdjust[Rate][Cycle];
+
+			if (Slot.EgPhase == ADSR::Attack) /* Exponential attack */
 			{
-				Level += AttnInc << (Slot.SsgEnable << 1);
-
-				/* Limit to maximum attenuation */
-				if (Level > 0x3FF) Level = 0x3FF;
-
-				if (Slot.EgPhase == ADSR::Decay)
+				if (Rate < 62)
 				{
-					/* We reached the sustain level, move to the sustain phase */
-					if (Level >= Slot.SustainLvl) Slot.EgPhase = ADSR::Sustain;
+					Level += ((~Level * AttnInc) >> 4);
 				}
 			}
+			else /* Linear decay */
+			{
+				/* When SSG-EG is active, don't update once we hit 0x200 */
+				if (((Level >> 9) & Slot.SsgEnable) == 0)
+				{
+					Level += AttnInc << (Slot.SsgEnable << 1);
+
+					/* Limit to maximum attenuation */
+					if (Level > 0x3FF) Level = 0x3FF;
+				}
+			}
+
+			Slot.EgLevel = Level;
 		}
-
-		Slot.EgLevel = Level;
 	}
-}
 
-void YM2612::UpdateEnvelopeGenerator3(uint32_t SlotId)
-{
-	auto& Chan = m_Channel[SlotId >> 2];
-	auto& Slot = m_Slot[SlotId];
-
-	/* Get internal EG level */
+	/*-------------------------------------*/
+	/* Step 3: Envelope output calculation */
+	/*-------------------------------------*/
 	uint32_t Attn = Slot.EgLevel;
 
 	/* Apply SGG-EG output inversion */
@@ -918,8 +924,6 @@ void YM2612::ProcessKeyEvent(uint32_t SlotId)
 void YM2612::StartEnvelope(uint32_t SlotId)
 {
 	auto& Slot = m_Slot[SlotId];
-
-	//if (Slot.EgPhase == ADSR::Attack) return;
 	
 	/* Move envelope to attack phase */
 	Slot.EgPhase = ADSR::Attack;
@@ -930,9 +934,6 @@ void YM2612::StartEnvelope(uint32_t SlotId)
 		/* Instant minimum attenuation */
 		Slot.EgLevel = 0;
 	}
-
-	/* Move to decay or sustain phase */
-	if (Slot.EgLevel == 0) Slot.EgPhase = Slot.SustainLvl ? ADSR::Decay : ADSR::Sustain;
 }
 
 void YM2612::UpdateLFO()
