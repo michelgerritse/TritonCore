@@ -87,20 +87,24 @@ See LICENSE.txt in the root directory of this source tree.
 /* Channel output mask */
 #define OUTPUT_MASK ~0
 
-/* Slot ordering */
-enum SLOT_NUM
+/* Slot naming */
+enum SLOT_NAME
 {
 	S1 = 0, S2, S3, S4
 };
 
+/* Channel naming */
+enum CHAN_NAME
+{
+	CH1 = 0, CH2, CH3, CH4, CH5, CH6
+};
+
 static const uint32_t SlotOrder[24] =
 {
-	 0 + S1,  0 + S3,  0 + S2,  0 + S4, /* Channel 1 */
-	 4 + S1,  4 + S3,  4 + S2,  4 + S4, /* Channel 2 */
-	 8 + S1,  8 + S3,  8 + S2,  8 + S4, /* Channel 3 */
-	12 + S1, 12 + S3, 12 + S2, 12 + S4, /* Channel 4 */
-	16 + S1, 16 + S3, 16 + S2, 16 + S4, /* Channel 5 */
-	20 + S1, 20 + S3, 20 + S2, 20 + S4  /* Channel 6 */
+	 0 + S1,  4 + S1,  8 + S1,  12 + S1, 16 + S1, 20 + S1, /* Channel 1 - 6: Slot 1 */
+	 0 + S3,  4 + S3,  8 + S3,  12 + S3, 16 + S3, 20 + S3, /* Channel 1 - 6: Slot 3 */
+	 0 + S2,  4 + S2,  8 + S2,  12 + S2, 16 + S2, 20 + S2, /* Channel 1 - 6: Slot 2 */
+	 0 + S4,  4 + S4,  8 + S4,  12 + S4, 16 + S4, 20 + S4  /* Channel 1 - 6: Slot 4 */
 };
 
 YM2612::YM2612(uint32_t ClockSpeed) :
@@ -120,6 +124,7 @@ const wchar_t* YM2612::GetDeviceName()
 void YM2612::Reset(ResetType Type)
 {
 	m_CyclesToDo = 0;
+	m_Cycle = 0;
 
 	/* Reset latches */
 	m_AddressLatch = 0;
@@ -133,6 +138,7 @@ void YM2612::Reset(ResetType Type)
 	/* Reset envelope generator */
 	m_EgCounter = 0;
 	m_EgClock = 0;
+	m_EgClockInc = 0;
 
 	/* Reset timers */
 	m_TimerA = 0;
@@ -470,7 +476,7 @@ void YM2612::WriteFM(uint8_t Register, uint8_t Port, uint8_t Data)
 	}
 }
 
-void YM2612::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
+void YM2612::Update2(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
 {
 	uint32_t TotalCycles = ClockCycles + m_CyclesToDo;
 	uint32_t Samples = TotalCycles / m_ClockDivider;
@@ -547,6 +553,151 @@ void YM2612::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
 	}
 }
 
+void YM2612::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
+{
+	uint32_t TotalCycles = ClockCycles + m_CyclesToDo;
+	uint32_t Cycles = TotalCycles / 6;
+	m_CyclesToDo = TotalCycles % 6;
+
+	int32_t Mol;
+	int32_t Mor;
+
+	while (Cycles-- != 0)
+	{
+		switch (m_Cycle)
+		{
+		case 0:
+			UpdateTimers();
+
+			/* Update Envelope Generator clock */
+			m_EgClock = (m_EgClock + 1) % 3;
+
+			/* Update Envelope Generator counter */
+			m_EgCounter += (m_EgClock >> 1);
+			m_EgCounter += (m_EgCounter >> 12); /* Overflow bug in the OPN unit */
+			m_EgCounter &= 0xFFF;
+			break;
+
+		case 1:
+			break;
+
+		case 2:
+			break;
+
+		case 3:
+			UpdateAccumulator(CH2);
+			break;
+
+		case 4:
+			break;
+
+		case 5:
+			break;
+
+		case 6:
+			break;
+
+		case 7:
+			if (m_DacSelect) m_Channel[CH6].Output = m_DacData << 5;
+			else UpdateAccumulator(CH6);
+			break;
+
+		case 8:
+			break;
+
+		case 9:
+			break;
+
+		case 10:
+			break;
+
+		case 11:
+			UpdateAccumulator(CH4);
+			break;
+
+		case 12:
+			break;
+
+		case 13:
+			break;
+
+		case 14:
+			break;
+
+		case 15:
+			UpdateAccumulator(CH1);
+			break;
+
+		case 16:
+			break;
+
+		case 17:
+			break;
+
+		case 18:
+			break;
+
+		case 19:
+			UpdateAccumulator(CH5);
+			break;
+
+		case 20:
+			break;
+
+		case 21:
+			break;
+
+		case 22:
+			break;
+
+		case 23:
+			UpdateLFO();
+			UpdateAccumulator(CH3);
+
+			Mol = 0;
+			Mor = 0;
+
+			/* Mix channels */
+			Mol += (m_Channel[0].Output & m_Channel[0].MaskL);
+			Mor += (m_Channel[0].Output & m_Channel[0].MaskR);
+
+			Mol += (m_Channel[1].Output & m_Channel[1].MaskL);
+			Mor += (m_Channel[1].Output & m_Channel[1].MaskR);
+
+			Mol += (m_Channel[2].Output & m_Channel[2].MaskL);
+			Mor += (m_Channel[2].Output & m_Channel[2].MaskR);
+
+			Mol += (m_Channel[3].Output & m_Channel[3].MaskL);
+			Mor += (m_Channel[3].Output & m_Channel[3].MaskR);
+
+			Mol += (m_Channel[4].Output & m_Channel[4].MaskL);
+			Mor += (m_Channel[4].Output & m_Channel[4].MaskR);
+
+			Mol += (m_Channel[5].Output & m_Channel[5].MaskL);
+			Mor += (m_Channel[5].Output & m_Channel[5].MaskR);
+
+			/* Limiter (signed 16-bit) */
+			Mol = std::clamp(Mol, -32768, 32767);
+			Mor = std::clamp(Mor, -32768, 32767);
+
+			/* 16-bit DAC output (interleaved) */
+			OutBuffer[0]->WriteSampleS16(Mol);
+			OutBuffer[0]->WriteSampleS16(Mor);
+			break;
+		}
+
+		uint32_t SlotID = SlotOrder[m_Cycle % 24];
+		
+		PrepareSlot(SlotID);
+		UpdatePhaseGenerator(SlotID);
+		UpdateEnvelopeGenerator(SlotID);
+		UpdateOperatorUnit(SlotID);
+
+		/* Move to next cycle */
+		m_Cycle = (m_Cycle + 1) % 24;
+	}
+}
+
 void YM2612::PrepareSlot(uint32_t SlotId)
 {
 	uint32_t ChannelId = SlotId >> 2;
@@ -563,7 +714,7 @@ void YM2612::PrepareSlot(uint32_t SlotId)
 		auto i = SlotId & 3;
 
 		/* Get Block/FNum for channel 3: S1-S2-S3 */
-		if ((ChannelId == 2) && (i != S4))
+		if ((ChannelId == CH3) && (i != S4))
 		{
 			Slot.FNum = m_3ChFNum[i];
 			Slot.Block = m_3ChBlock[i];
@@ -625,7 +776,8 @@ void YM2612::UpdateEnvelopeGenerator(uint32_t SlotId)
 				Slot.SsgEgInvOut ^= Slot.SsgEgAlt;
 
 				/* Restart the phase counter when we are repeating normally (not alternating) */
-				if (Slot.SsgEgAlt == 0) Slot.PgPhase = 0;
+				//if (Slot.SsgEgAlt == 0) Slot.PgPhase = 0;
+				Slot.PgPhase &= ~(Slot.SsgEgAlt - 1);
 			}
 		}
 		else /* Release phase */

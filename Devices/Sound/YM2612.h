@@ -34,6 +34,7 @@ public:
 	uint32_t		GetClockSpeed();
 	void			Write(uint32_t Address, uint32_t Data);
 	void			Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer);
+	void			Update2(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer);
 
 private:
 
@@ -99,6 +100,7 @@ private:
 	uint8_t		m_AddressLatch;		/* Address latch (8-bit) */
 	uint8_t		m_PortLatch;		/* Port latch (1-bit) */
 	uint8_t		m_Status;			/* Status Register (8-bit) */
+	uint32_t	m_Cycle;			/* Current clock cycle */
 
 	uint8_t		m_FNumLatch;		/* Fnum2 / Block latch (6-bit) */
 	uint8_t		m_3ChFNumLatch;		/* 3CH Fnum2 / Block latch mode (6-bit) */
@@ -111,6 +113,7 @@ private:
 	
 	uint32_t	m_EgCounter;		/* EG counter (12-bit) */
 	uint32_t	m_EgClock;			/* EG clock */
+	uint32_t	m_EgClockInc;		/* EG clock increment */
 
 	uint32_t	m_TimerA;			/* Timer A Register (10-bit) */
 	uint32_t	m_TimerB;			/* Timer B Register (8-bit) */
