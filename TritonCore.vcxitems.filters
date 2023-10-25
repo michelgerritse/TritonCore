@@ -59,6 +59,9 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\SegaPWM.h">
       <Filter>Devices\Sound</Filter>
     </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\AY8910.h">
+      <Filter>Devices\Sound</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Interfaces">
@@ -100,6 +103,9 @@
       <Filter>Devices\Sound</Filter>
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\SegaPWM.cpp">
+      <Filter>Devices\Sound</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\AY8910.cpp">
       <Filter>Devices\Sound</Filter>
     </ClCompile>
   </ItemGroup>
