@@ -21,6 +21,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\ADPCM.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\AY.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\AY8910.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\MSM6295.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\NullSound.h" />

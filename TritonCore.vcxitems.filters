@@ -62,6 +62,9 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\AY8910.h">
       <Filter>Devices\Sound</Filter>
     </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\AY.h">
+      <Filter>Devices\Sound</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Interfaces">

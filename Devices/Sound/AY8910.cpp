@@ -12,15 +12,11 @@ See LICENSE.txt in the root directory of this source tree.
 
 */
 #include "AY8910.h"
+#include "AY.h"
 
 /*
 	General Instrument AY-3-8910
 */
-
-static int16_t s_Volume[16] =
-{
-	0, 87, 123, 173, 245, 345, 488, 689, 973, 1375, 1942, 2744, 3875, 5474, 7732, 10922
-};
 
 AY8910::AY8910(uint32_t ClockSpeed) :
 	m_ClockSpeed(ClockSpeed),
@@ -50,7 +46,7 @@ void AY8910::Reset(ResetType Type)
 		m_Tone[i].Counter = 0;
 		m_Tone[i].Period.u32 = 0;
 		m_Tone[i].Output = 0;
-		m_Tone[i].Volume = s_Volume[0];
+		m_Tone[i].Volume = AY::Volume16[0][0];
 
 		m_Tone[i].ToneDisable = 0;
 		m_Tone[i].NoiseDisable = 0;
@@ -67,7 +63,7 @@ void AY8910::Reset(ResetType Type)
 	/* Reset envelope generator */
 	m_Envelope.Counter = 0;
 	m_Envelope.Period.u32 = 0;
-	m_Envelope.Volume = s_Volume[15];
+	m_Envelope.Volume = AY::Volume16[1][15];
 	m_Envelope.FlipFlop = 0;
 	m_Envelope.Step = 15;
 	m_Envelope.StepDec = 1;
@@ -128,7 +124,7 @@ uint32_t AY8910::GetClockSpeed()
 void AY8910::Write(uint32_t Address, uint32_t Data)
 {
 	Address &= 0x0F;
-	Data &= 0xFF;
+	Data &= AY::Mask[Address];
 
 	m_Register[Address] = Data;
 
@@ -139,7 +135,7 @@ void AY8910::Write(uint32_t Address, uint32_t Data)
 			break;
 
 		case 0x01: /* Channel A Tone Period (Coarse Tune) */
-			m_Tone[0].Period.u8lh = Data & 0x0F;
+			m_Tone[0].Period.u8lh = Data;
 			break;
 
 		case 0x02: /* Channel B Tone Period (Fine Tune) */
@@ -147,7 +143,7 @@ void AY8910::Write(uint32_t Address, uint32_t Data)
 			break;
 
 		case 0x03: /* Channel B Tone Period (Coarse Tune) */
-			m_Tone[1].Period.u8lh = Data & 0x0F;
+			m_Tone[1].Period.u8lh = Data;
 			break;
 
 		case 0x04: /* Channel C Tone Period (Fine Tune) */
@@ -155,11 +151,11 @@ void AY8910::Write(uint32_t Address, uint32_t Data)
 			break;
 
 		case 0x05: /* Channel C Tone Period (Coarse Tune) */
-			m_Tone[2].Period.u8lh = Data & 0x0F;
+			m_Tone[2].Period.u8lh = Data;
 			break;
 
 		case 0x06: /* Noise Period */
-			m_Noise.Period = Data & 0x1F;
+			m_Noise.Period = Data;
 			break;
 
 		case 0x07: /* Mixer Control - I/O Enable */
@@ -173,17 +169,17 @@ void AY8910::Write(uint32_t Address, uint32_t Data)
 			break;
 
 		case 0x08: /* Channel A Amplitude Control */
-			m_Tone[0].Volume = s_Volume[Data & 0x0F];
+			m_Tone[0].Volume = AY::Volume16[0][Data & 0x0F];
 			m_Tone[0].AmpCtrl = (Data & 0x10) >> 4;
 			break;
 
 		case 0x09: /* Channel B Amplitude Control */
-			m_Tone[1].Volume = s_Volume[Data & 0x0F];
+			m_Tone[1].Volume = AY::Volume16[0][Data & 0x0F];
 			m_Tone[1].AmpCtrl = (Data & 0x10) >> 4;
 			break;
 
 		case 0x0A: /* Channel C Amplitude Control */
-			m_Tone[2].Volume = s_Volume[Data & 0x0F];
+			m_Tone[2].Volume = AY::Volume16[0][Data & 0x0F];
 			m_Tone[2].AmpCtrl = (Data & 0x10) >> 4;
 			break;
 
@@ -219,7 +215,7 @@ void AY8910::Write(uint32_t Address, uint32_t Data)
 			}
 
 			/* Set initial ouput volume */
-			m_Envelope.Volume = s_Volume[m_Envelope.Step ^ m_Envelope.Inv];
+			m_Envelope.Volume = AY::Volume16[1][m_Envelope.Step ^ m_Envelope.Inv];
 			break;
 
 		case 0x0E: /* I/O Port A Data Store */
@@ -267,7 +263,7 @@ void AY8910::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
 				}
 
 				/* Apply output inversion and lookup volume */
-				m_Envelope.Volume = s_Volume[m_Envelope.Step ^ m_Envelope.Inv];
+				m_Envelope.Volume = AY::Volume16[1][m_Envelope.Step ^ m_Envelope.Inv];
 			}
 		}
 		
