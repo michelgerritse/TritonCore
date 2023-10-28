@@ -4,6 +4,7 @@ It is part of project Triton, which is not ready for public release yet.
 
 ## Emulated Devices
 The following sound devices are emulated:
+- General Instrument AY-3-8910 (family/clones)
 - Oki MSM6295
 - Ricoh RF5C68 and RF5C164
 - Sega 32X PWM
