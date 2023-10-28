@@ -22,30 +22,6 @@ static int16_t s_Volume[16] =
 	0, 87, 123, 173, 245, 345, 488, 689, 973, 1375, 1942, 2744, 3875, 5474, 7732, 10922
 };
 
-static uint32_t s_EnvelopeStep[16][16]
-{
-	{ 15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0}, /* b0000 */
-	{  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0}, /* b0001 */
-	{ 15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0}, /* b0010 */
-	{  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0}, /* b0011 */
-	
-	{  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15}, /* b0100 */
-	{  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0}, /* b0101 */
-	{  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15}, /* b0110 */
-	{  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0}, /* b0111 */
-
-	{ 15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0}, /* b1000 */
-	{  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0}, /* b1001 */
-	{  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15}, /* b1010 */
-	{ 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15}, /* b1011 */
-
-	{  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15}, /* b1100 */
-	{ 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15}, /* b1101 */
-	{ 15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0}, /* b1110 */
-	{  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0}, /* b1111 */
-};
-
-
 AY8910::AY8910(uint32_t ClockSpeed) :
 	m_ClockSpeed(ClockSpeed),
 	m_ClockDivider(16) //FIXME: should be 8
@@ -74,7 +50,7 @@ void AY8910::Reset(ResetType Type)
 		m_Tone[i].Counter = 0;
 		m_Tone[i].Period.u32 = 0;
 		m_Tone[i].Output = 0;
-		m_Tone[i].Volume = 0;
+		m_Tone[i].Volume = s_Volume[0];
 
 		m_Tone[i].ToneDisable = 0;
 		m_Tone[i].NoiseDisable = 0;
@@ -93,10 +69,11 @@ void AY8910::Reset(ResetType Type)
 	m_Envelope.Period.u32 = 0;
 	m_Envelope.Volume = s_Volume[15];
 	m_Envelope.FlipFlop = 0;
-	m_Envelope.Step = 0;
-	m_Envelope.State = 0;
+	m_Envelope.Step = 15;
+	m_Envelope.StepDec = 1;
 	m_Envelope.Hld = 1;
-	m_Envelope.Alt = 0;
+	m_Envelope.Alt = 15;
+	m_Envelope.Inv = 0;
 }
 
 void AY8910::SendExclusiveCommand(uint32_t Command, uint32_t Value)
@@ -220,13 +197,29 @@ void AY8910::Write(uint32_t Address, uint32_t Data)
 
 		case 0x0D: /* Envelope Shape / Cycle Control */
 			m_Envelope.Counter = 0;
-			m_Envelope.Step = 0;
+			m_Envelope.Step = 15;
+			m_Envelope.StepDec = 1;
 
-			m_Envelope.State = Data & 0x0C; /* CONT and ATT bits only */
-			m_Envelope.Hld = (Data & 0x08) ? (Data & 0x01) : 1;
-			m_Envelope.Alt = Data & 0x02;
+			/* If attacking, apply output inversion */
+			m_Envelope.Inv = (Data & 0x04) ? 15 : 0;
+			
+			if (Data & 0x08) /* Continuous cycles */
+			{								
+				m_Envelope.Hld = Data & 0x01;
 
-			m_Envelope.Volume = s_Volume[(Data & 0x04) ? 0 : 15];
+				if (m_Envelope.Hld)
+					m_Envelope.Alt = (Data & 0x02) ? 0 : 15;
+				else
+					m_Envelope.Alt = (Data & 0x02) ? 15 : 0;
+			}
+			else /* Single cycle */
+			{
+				m_Envelope.Hld = 1;
+				m_Envelope.Alt = m_Envelope.Inv ^ 15;
+			}
+
+			/* Set initial ouput volume */
+			m_Envelope.Volume = s_Volume[m_Envelope.Step ^ m_Envelope.Inv];
 			break;
 
 		case 0x0E: /* I/O Port A Data Store */
@@ -258,18 +251,23 @@ void AY8910::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
 			/* Update envelope when flipflop transitioned from 0 to 1 */
 			if (m_Envelope.FlipFlop ^= 1)
 			{
-				if (++m_Envelope.Step & 16) /* Envelope period completed */
+				/* Count down step counter (15 -> 0) */
+				m_Envelope.Step -= m_Envelope.StepDec;
+				
+				if (m_Envelope.Step & 16) /* Envelope cycle completed */
 				{
-					m_Envelope.Step = 0;
-					m_Envelope.State |= m_Envelope.Hld;
-					m_Envelope.State ^= m_Envelope.Alt;
+					/* Restart cycle */
+					m_Envelope.Step = 15;
+					
+					/* Stop counting (if needed) */
+					m_Envelope.StepDec = m_Envelope.Hld ^ 1;
+					
+					/* Toggle output inversion */
+					m_Envelope.Inv ^= m_Envelope.Alt;
 				}
 
-				/* Lookup "real" envelope step */
-				uint32_t EnvStep = s_EnvelopeStep[m_Envelope.State][m_Envelope.Step];
-
-				/* Lookup new volume (or amplitude) */
-				m_Envelope.Volume = s_Volume[EnvStep];
+				/* Apply output inversion and lookup volume */
+				m_Envelope.Volume = s_Volume[m_Envelope.Step ^ m_Envelope.Inv];
 			}
 		}
 		

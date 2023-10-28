@@ -63,9 +63,10 @@ private:
 		int16_t		Volume;			/* Envelope volume */
 		uint32_t	FlipFlop;
 		uint32_t	Step;			/* Current envelope step (0 - 15) */
-		uint32_t	State;			/* Envelope state (4-bit) */
+		uint32_t	StepDec;
 		uint32_t	Hld;			/* Envelope hold bit */
 		uint32_t	Alt;			/* Envelope alternate bit */
+		uint32_t	Inv;			/* Envelope output inversion */
 	};
 	
 	AYCHANNEL	m_Tone[3];
