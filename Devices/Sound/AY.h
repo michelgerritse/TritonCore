@@ -27,26 +27,8 @@ namespace AY /* AY8910 family / clones */
 	/* Volume (or amplitude) table (AY variants) */
 	static const int16_t Volume16[2][16] =
 	{
-		/*	AY output measurements:
-			https://groups.google.com/g/comp.sys.sinclair/c/-zCR2kxMryY#d5959a800cda0b5e
-
-			Level	Voltage		Volt(+0.2V)	Normalized	Norm.(+0.2V)
-			0		1.147		1.347		0.000		0.200
-			1		1.162		1.362		0.015		0.215
-			2		1.169		1.369		0.022		0.222
-			3		1.178		1.378		0.031		0.231
-			4		1.192		1.392		0.045		0.245
-			5		1.213		1.413		0.066		0.266
-			6		1.238		1.438		0.091		0.291
-			7		1.299		1.499		0.152		0.352
-			8		1.336		1.536		0.189		0.389
-			9		1.457		1.657		0.310		0.510
-			10		1.573		1.773		0.426		0.626
-			11		1.707		1.907		0.560		0.760
-			12		1.882		2.082		0.735		0.935
-			13		2.060		2.260		0.913		1.113
-			14		2.320		2.520		1.173		1.373
-			15		2.580		2.780		1.433		1.633
+		/*	AY-3-8910 output measurements:
+			https://github.com/michelgerritse/YM-research/blob/main/AY8910%20-%20Output.xlsx
 		*/
 		
 #define V(x) {(int16_t) (double) ((x) * (32767.f / 5.f))}
@@ -66,9 +48,18 @@ namespace AY /* AY8910 family / clones */
 	/* Volume (or amplitude) table (YM variants) */
 	static const int16_t Volume32[32] =
 	{
-		//TODO;
-		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+		/*	YM2149 output measurements:
+			https://github.com/michelgerritse/YM-research/blob/main/AY8910%20-%20Output.xlsx
+		*/
+
+#define V(x) {(int16_t) (double) ((x) * (32767.f / 5.f))}
+
+		V(0.000), V(0.008), V(0.012), V(0.017), V(0.020), V(0.024), V(0.027), V(0.031),
+		V(0.036), V(0.042), V(0.048), V(0.054), V(0.064), V(0.074), V(0.085), V(0.096),
+		V(0.115), V(0.134), V(0.155), V(0.177), V(0.212), V(0.248), V(0.288), V(0.328),
+		V(0.395), V(0.464), V(0.539), V(0.617), V(0.741), V(0.871), V(1.005), V(1.146)
+
+#undef V
 	};
 
 
