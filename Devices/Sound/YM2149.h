@@ -15,6 +15,7 @@ See LICENSE.txt in the root directory of this source tree.
 #define _YM2149_H_
 
 #include "../../Interfaces/ISoundDevice.h"
+#include "AY.h"
 
 /* Yamaha YM2149 (SSG) */
 class YM2149 : public ISoundDevice
@@ -36,44 +37,12 @@ public:
 	void			Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer);
 
 private:
-	struct AYCHANNEL
-	{
-		uint32_t	Counter;		/* Tone counter (12-bit) */
-		pair32_t	Period;			/* Tone period (12-bit) */
-		uint32_t	Output;			/* Tone output (1-bit) */
-		int16_t		Volume;			/* Tone volume */
-		uint32_t	ToneDisable;	/* Tone mixer control */
-		uint32_t	NoiseDisable;	/* Noise mixer control */
-		uint32_t	AmpCtrl;		/* Amplitude control mode */
-	};
+	AY::channel_t	m_Tone[3];
+	AY::noise_t		m_Noise;
+	AY::envelope_t	m_Envelope;
 
-	struct AYNOISE
-	{
-		uint32_t	Counter;		/* Noise counter (12-bit) */
-		uint32_t	Period;			/* Noise period (12-bit) */
-		uint32_t	Output;			/* Noise output (1-bit) */
-		uint32_t	FlipFlop;
-		uint32_t	LFSR;			/* Shift register (17-bit) */
-	};
-
-	struct AYENVELOPE
-	{
-		uint32_t	Counter;		/* Envelope counter (16-bit) */
-		pair32_t	Period;			/* Envelope period (16-bit) */
-		int16_t		Volume;			/* Envelope volume */
-		uint32_t	FlipFlop;
-		uint32_t	Step;			/* Current envelope step (0 - 15) */
-		uint32_t	StepDec;
-		uint32_t	Hld;			/* Envelope hold bit */
-		uint32_t	Alt;			/* Envelope alternate bit */
-		uint32_t	Inv;			/* Envelope output inversion */
-	};
-
-	AYCHANNEL	m_Tone[3];
-	AYNOISE		m_Noise;
-	AYENVELOPE	m_Envelope;
-
-	uint32_t	m_Register[16];		/* Register array (8-bit) */
+	std::array<uint8_t, 16> m_Register;
+	
 	uint32_t	m_ClockSpeed;
 	uint32_t	m_ClockDivider;
 	uint32_t	m_CyclesToDo;

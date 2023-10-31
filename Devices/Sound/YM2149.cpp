@@ -12,7 +12,6 @@ See LICENSE.txt in the root directory of this source tree.
 
 */
 #include "YM2149.h"
-#include "AY.h"
 
 /*
 	Yamaha YM2149
@@ -35,22 +34,13 @@ void YM2149::Reset(ResetType Type)
 	m_CyclesToDo = 0;
 
 	/* Clear register array (initial state is 0 for all registers) */
-	for (auto i = 0; i < 16; i++)
-	{
-		m_Register[i] = 0;
-	}
+	m_Register.fill(0);
 
-	/* Reset tone channels to default state */
-	for (auto i = 0; i < 3; i++)
+	/* Reset tone generators */
+	for (auto& Tone : m_Tone)
 	{
-		m_Tone[i].Counter = 0;
-		m_Tone[i].Period.u32 = 0;
-		m_Tone[i].Output = 0;
-		m_Tone[i].Volume = AY::Volume32[1];
-
-		m_Tone[i].ToneDisable = 0;
-		m_Tone[i].NoiseDisable = 0;
-		m_Tone[i].AmpCtrl = 0;
+		memset(&Tone, 0, sizeof(AY::channel_t));
+		Tone.Volume = AY::Volume32[1];
 	}
 
 	/* Reset noise generator */
@@ -241,7 +231,7 @@ void YM2149::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
 		if ((m_Envelope.Counter += 2) >= m_Envelope.Period.u32) //FIXME: should be += 1
 		{
 			/* Reset counter */
-			m_Envelope.Counter -= m_Envelope.Period.u32;
+			m_Envelope.Counter = 0;
 
 			/* Count down step counter (31 -> 0) */
 			m_Envelope.Step -= m_Envelope.StepDec;
@@ -266,7 +256,7 @@ void YM2149::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
 		if ((m_Noise.Counter += 2) >= m_Noise.Period) //FIXME: should be += 1
 		{
 			/* Reset counter */
-			m_Noise.Counter -= m_Noise.Period;
+			m_Noise.Counter = 0;
 
 			/* Update LFSR when flipflop transitioned from 0 to 1 */
 			if (m_Noise.FlipFlop ^= 1)
@@ -282,20 +272,27 @@ void YM2149::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
 			}
 		}
 
-		/* Update, mix and output tone channels */
+		/* Update, mix and output tone generators */
 		for (auto i = 0; i < 3; i++)
 		{
 			auto& Tone = m_Tone[i];
 
 			Out = 0;
 
-			if ((Tone.Counter += 2) >= Tone.Period.u32) //FIXME: should be += 1
+			if (Tone.Period.u32 == 0) //FIXME: No special case needed for period = 0
 			{
-				/* Reset counter */
-				Tone.Counter -= Tone.Period.u32;
+				Tone.Output = 1;
+			}
+			else
+			{
+				if ((Tone.Counter += 2) >= Tone.Period.u32) //FIXME: should be += 1
+				{
+					/* Reset counter */
+					Tone.Counter = 0;
 
-				/* Toggle output flag */
-				Tone.Output ^= 1;
+					/* Toggle output flag */
+					Tone.Output ^= 1;
+				}
 			}
 
 			if ((Tone.Output | Tone.ToneDisable) & (m_Noise.Output | Tone.NoiseDisable))

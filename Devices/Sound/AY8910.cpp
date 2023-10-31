@@ -12,7 +12,6 @@ See LICENSE.txt in the root directory of this source tree.
 
 */
 #include "AY8910.h"
-#include "AY.h"
 
 /*
 	General Instrument AY-3-8910
@@ -35,22 +34,13 @@ void AY8910::Reset(ResetType Type)
 	m_CyclesToDo = 0;
 
 	/* Clear register array (initial state is 0 for all registers) */
-	for (auto i = 0; i < 16; i++)
-	{
-		m_Register[i] = 0;
-	}
+	m_Register.fill(0);
 
-	/* Reset tone channels to default state */
-	for (auto i = 0; i < 3; i++)
+	/* Reset tone generators */
+	for (auto& Tone : m_Tone)
 	{
-		m_Tone[i].Counter = 0;
-		m_Tone[i].Period.u32 = 0;
-		m_Tone[i].Output = 0;
-		m_Tone[i].Volume = AY::Volume16[0][0];
-
-		m_Tone[i].ToneDisable = 0;
-		m_Tone[i].NoiseDisable = 0;
-		m_Tone[i].AmpCtrl = 0;
+		memset(&Tone, 0, sizeof(AY::channel_t));
+		//Tone.Volume = AY::Volume16[0][0];
 	}
 
 	/* Reset noise generator */
@@ -287,7 +277,7 @@ void AY8910::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
 			}
 		}
 
-		/* Update, mix and output tone channels */
+		/* Update, mix and output tone generators */
 		for (auto i = 0; i < 3; i++)
 		{
 			auto& Tone = m_Tone[i];
