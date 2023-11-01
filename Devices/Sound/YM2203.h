@@ -15,12 +15,13 @@ See LICENSE.txt in the root directory of this source tree.
 #define _YM2203_H_
 
 #include "../../Interfaces/ISoundDevice.h"
+#include "AY.h"
 
 /* Yamaha YM2203 (OPN) */
 class YM2203 : public ISoundDevice
 {
 public:
-	YM2203(uint32_t ClockSpeed = 4000000);
+	YM2203(uint32_t ClockSpeed = 4'000'000);
 	~YM2203() = default;
 
 	/* IDevice methods */
@@ -34,6 +35,9 @@ public:
 	uint32_t		GetClockSpeed();
 	void			Write(uint32_t Address, uint32_t Data);
 	void			Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer);
+
+	void			UpdateOPN(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer);
+	void			UpdateSSG(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer);
 
 private:
 
@@ -117,11 +121,18 @@ private:
 
 	uint32_t	m_PreScalerOPN;		/* OPN Prescaler */
 	uint32_t	m_PreScalerSSG;		/* SSG Prescaler */
+
+	AY::channel_t	m_Tone[3];
+	AY::noise_t		m_Noise;
+	AY::envelope_t	m_Envelope;
+
+	std::array<uint8_t, 16> m_Register;
 	
 	uint32_t	m_ClockSpeed;
-	uint32_t	m_ClockDivider;
-	uint32_t	m_CyclesToDo;
+	uint32_t	m_CyclesToDoOPN;
+	uint32_t	m_CyclesToDoSSG;
 
+	void		WriteSSG(uint8_t Register, uint8_t Data);
 	void		WriteMode(uint8_t Register, uint8_t Data);
 	void		WriteFM(uint8_t Register, uint8_t Data);
 
