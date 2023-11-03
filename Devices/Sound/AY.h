@@ -18,34 +18,37 @@ See LICENSE.txt in the root directory of this source tree.
 
 namespace AY /* AY8910 family / clones */
 {
-	struct channel_t
+	/* Data type for tone generator */
+	struct tone_t
 	{
 		uint32_t	Counter;		/* Tone counter (12-bit) */
 		pair32_t	Period;			/* Tone period (12-bit) */
 		uint32_t	Output;			/* Tone output (1-bit) */
-		int16_t		Volume;			/* Tone volume */
-		uint32_t	ToneDisable;	/* Tone mixer control */
-		uint32_t	NoiseDisable;	/* Noise mixer control */
-		uint32_t	AmpCtrl;		/* Amplitude control mode */
+		int16_t		Amplitude;		/* Tone amplitude */
+		uint32_t	ToneDisable;	/* Tone mixer control (1-bit) */
+		uint32_t	NoiseDisable;	/* Noise mixer control (1-bit) */
+		uint32_t	AmpCtrl;		/* Amplitude control mode (1-bit) */
 	};
 
+	/* Data type for noise generator */
 	struct noise_t
 	{
 		uint32_t	Counter;		/* Noise counter (12-bit) */
 		uint32_t	Period;			/* Noise period (12-bit) */
 		uint32_t	Output;			/* Noise output (1-bit) */
-		uint32_t	FlipFlop;
+		uint32_t	Prescaler;		/* Noise /2 prescaler */
 		uint32_t	LFSR;			/* Shift register (17-bit) */
 	};
 
+	/* Data type for envelope generator */
 	struct envelope_t
 	{
 		uint32_t	Counter;		/* Envelope counter (16-bit) */
 		pair32_t	Period;			/* Envelope period (16-bit) */
-		int16_t		Volume;			/* Envelope volume */
-		uint32_t	FlipFlop;
+		int16_t		Amplitude;		/* Envelope volume */
+		uint32_t	Prescaler;		/* Envelope /2 prescaler */
 		uint32_t	Step;			/* Current envelope step (0 - 15) */
-		uint32_t	StepDec;
+		uint32_t	StepDec;		/* Envelope step decrement */
 		uint32_t	Hld;			/* Envelope hold bit */
 		uint32_t	Alt;			/* Envelope alternate bit */
 		uint32_t	Inv;			/* Envelope output inversion */
@@ -56,9 +59,12 @@ namespace AY /* AY8910 family / clones */
 	{
 		0xFF, 0x0F, 0xFF, 0x0F, 0xFF, 0x0F, 0x1F, 0xFF, 0x1F, 0x1F, 0x1F, 0xFF, 0xFF, 0x0F, 0xFF, 0xFF
 	};
+
+	/* 0.2V DC offset for channels with envelope enabled (AY only) */
+	constexpr int16_t DCOffset02V = (int16_t)(double)((0.2) * (32767.f / 5.f));
 	
-	/* Volume (or amplitude) table (AY variants) */
-	static const int16_t Volume16[2][16] =
+	/* Amplitude table (AY variants) */
+	static const int16_t Amplitude16[16] =
 	{
 		/*	AY-3-8910 output measurements:
 			https://github.com/michelgerritse/YM-research/blob/main/AY8910%20-%20Output.xlsx
@@ -66,20 +72,14 @@ namespace AY /* AY8910 family / clones */
 		
 #define V(x) {(int16_t) (double) ((x) * (32767.f / 5.f))}
 
-		{	/* Fixed tone level output */
-			V(0.000), V(0.015), V(0.022), V(0.031), V(0.045), V(0.066), V(0.091), V(0.152),
-			V(0.189), V(0.310), V(0.426), V(0.560), V(0.735), V(0.913), V(1.173), V(1.433)
-		},
-		
-		{	/* Envelope level ouput (with +0.2V DC) */
-			V(0.200), V(0.215), V(0.222), V(0.231), V(0.245), V(0.266), V(0.291), V(0.352),
-			V(0.389), V(0.510), V(0.626), V(0.760), V(0.935), V(1.113), V(1.373), V(1.633)
-		}
+		V(0.000), V(0.015), V(0.022), V(0.031), V(0.045), V(0.066), V(0.091), V(0.152),
+		V(0.189), V(0.310), V(0.426), V(0.560), V(0.735), V(0.913), V(1.173), V(1.433)
+
 #undef V
 	};
 
-	/* Volume (or amplitude) table (YM variants) */
-	static const int16_t Volume32[32] =
+	/* Amplitude table (YM variants) */
+	static const int16_t Amplitude32[32] =
 	{
 		/*	YM2149 output measurements:
 			https://github.com/michelgerritse/YM-research/blob/main/AY8910%20-%20Output.xlsx

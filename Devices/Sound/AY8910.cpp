@@ -39,22 +39,18 @@ void AY8910::Reset(ResetType Type)
 	/* Reset tone generators */
 	for (auto& Tone : m_Tone)
 	{
-		memset(&Tone, 0, sizeof(AY::channel_t));
-		//Tone.Volume = AY::Volume16[0][0];
+		memset(&Tone, 0, sizeof(AY::tone_t));
 	}
 
 	/* Reset noise generator */
-	m_Noise.Counter = 0;
-	m_Noise.Period = 0;
-	m_Noise.Output = 0;
-	m_Noise.FlipFlop = 0;
+	memset(&m_Noise, 0, sizeof(AY::noise_t));
 	m_Noise.LFSR = 1 << (17 - 1);
 
 	/* Reset envelope generator */
 	m_Envelope.Counter = 0;
 	m_Envelope.Period.u32 = 0;
-	m_Envelope.Volume = AY::Volume16[1][15];
-	m_Envelope.FlipFlop = 0;
+	m_Envelope.Amplitude = AY::Amplitude16[15];
+	m_Envelope.Prescaler = 0;
 	m_Envelope.Step = 15;
 	m_Envelope.StepDec = 1;
 	m_Envelope.Hld = 1;
@@ -114,7 +110,7 @@ uint32_t AY8910::GetClockSpeed()
 void AY8910::Write(uint32_t Address, uint32_t Data)
 {
 	Address &= 0x0F;
-	Data &= AY::Mask[Address];
+	Data &= AY::Mask[Address]; /* Mask unused bits before storing */
 
 	m_Register[Address] = Data;
 
@@ -159,17 +155,17 @@ void AY8910::Write(uint32_t Address, uint32_t Data)
 			break;
 
 		case 0x08: /* Channel A Amplitude Control */
-			m_Tone[0].Volume = AY::Volume16[0][Data & 0x0F];
+			m_Tone[0].Amplitude = AY::Amplitude16[Data & 0x0F];
 			m_Tone[0].AmpCtrl = (Data & 0x10) >> 4;
 			break;
 
 		case 0x09: /* Channel B Amplitude Control */
-			m_Tone[1].Volume = AY::Volume16[0][Data & 0x0F];
+			m_Tone[1].Amplitude = AY::Amplitude16[Data & 0x0F];
 			m_Tone[1].AmpCtrl = (Data & 0x10) >> 4;
 			break;
 
 		case 0x0A: /* Channel C Amplitude Control */
-			m_Tone[2].Volume = AY::Volume16[0][Data & 0x0F];
+			m_Tone[2].Amplitude = AY::Amplitude16[Data & 0x0F];
 			m_Tone[2].AmpCtrl = (Data & 0x10) >> 4;
 			break;
 
@@ -205,7 +201,7 @@ void AY8910::Write(uint32_t Address, uint32_t Data)
 			}
 
 			/* Set initial ouput volume */
-			m_Envelope.Volume = AY::Volume16[1][m_Envelope.Step ^ m_Envelope.Inv];
+			m_Envelope.Amplitude = AY::Amplitude16[m_Envelope.Step ^ m_Envelope.Inv] + AY::DCOffset02V;
 			break;
 
 		case 0x0E: /* I/O Port A Data Store */
@@ -225,47 +221,46 @@ void AY8910::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
 	m_CyclesToDo = TotalCycles % m_ClockDivider;
 
 	int16_t Out;
+	uint32_t Mask;
 
 	while (Samples-- != 0)
 	{
 		/* Update envelope generator */
-		if ((m_Envelope.Counter += 2) >= m_Envelope.Period.u32) //FIXME: should be += 1
+		if (m_Envelope.Prescaler ^= 1)
 		{
-			/* Reset counter */
-			m_Envelope.Counter = 0;
-
-			/* Update envelope when flipflop transitioned from 0 to 1 */
-			if (m_Envelope.FlipFlop ^= 1)
+			if ((m_Envelope.Counter += 2) >= m_Envelope.Period.u32) //FIXME: should be += 1
 			{
+				/* Reset counter */
+				m_Envelope.Counter = 0;
+
 				/* Count down step counter (15 -> 0) */
 				m_Envelope.Step -= m_Envelope.StepDec;
-				
+
 				if (m_Envelope.Step & 16) /* Envelope cycle completed */
 				{
 					/* Restart cycle */
 					m_Envelope.Step = 15;
-					
+
 					/* Stop counting (if needed) */
 					m_Envelope.StepDec = m_Envelope.Hld ^ 1;
-					
+
 					/* Toggle output inversion */
 					m_Envelope.Inv ^= m_Envelope.Alt;
 				}
 
-				/* Apply output inversion and lookup volume */
-				m_Envelope.Volume = AY::Volume16[1][m_Envelope.Step ^ m_Envelope.Inv];
+				/* Apply output inversion and lookup amplitude */
+				m_Envelope.Amplitude = AY::Amplitude16[m_Envelope.Step ^ m_Envelope.Inv] + AY::DCOffset02V;
 			}
 		}
 		
 		/* Update noise generator */
-		if ((m_Noise.Counter += 2) >= m_Noise.Period) //FIXME: should be += 1
+		if (m_Noise.Prescaler ^= 1)
 		{
-			/* Reset counter */
-			m_Noise.Counter = 0;
-
-			/* Update LFSR when flipflop transitioned from 0 to 1 */
-			if (m_Noise.FlipFlop ^= 1)
+			if ((m_Noise.Counter += 2) >= m_Noise.Period) //FIXME: should be += 1
 			{
+				/* Reset counter */
+				m_Noise.Counter = 0;
+
 				/* Update output flag */
 				m_Noise.Output = m_Noise.LFSR & 1;
 
@@ -282,8 +277,6 @@ void AY8910::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
 		{
 			auto& Tone = m_Tone[i];
 			
-			Out = 0;
-
 			if ((Tone.Counter += 2) >= Tone.Period.u32) //FIXME: should be += 1
 			{
 				/* Reset counter */
@@ -293,14 +286,14 @@ void AY8910::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
 				Tone.Output ^= 1;
 			}
 
-			if ((Tone.Output | Tone.ToneDisable) & (m_Noise.Output | Tone.NoiseDisable))
-			{
-				/* Volume control */
-				Out = Tone.AmpCtrl ? m_Envelope.Volume : Tone.Volume;
-			}
+			/* Mix tone and noise (implemented as a mask) */
+			Mask = ~(((Tone.Output | Tone.ToneDisable) & (m_Noise.Output | Tone.NoiseDisable)) - 1);
 
+			/* Amplitude control */
+			Out = Tone.AmpCtrl ? m_Envelope.Amplitude : Tone.Amplitude;
+			
 			/* 16-bit output */
-			OutBuffer[i]->WriteSampleS16(Out);
+			OutBuffer[i]->WriteSampleS16(Out & Mask);
 		}
 	}
 }
