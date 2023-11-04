@@ -36,6 +36,7 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YMF278B.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YMW258F.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YMZ280B.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YMZ284.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Interfaces\IAudioBuffer.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Interfaces\IDevice.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Interfaces\IMemoryAccess.h" />
@@ -55,5 +56,6 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\YMF278B.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\YMW258F.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\YMZ280B.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\YMZ284.cpp" />
   </ItemGroup>
 </Project>
