@@ -95,6 +95,27 @@ namespace AY /* AY8910 family / clones */
 #undef V
 	};
 
+	/* Map 4-bit amplitude level to 5-bit (YM only) */
+	static const uint32_t MapLvl4to5[16] =
+	{
+		/*
+			We assume:
+			Lvl 00 = 00
+			Lvl 15 = 31
+		
+			This contradicts the YM2608 manual (page38) , where it is stated that:
+			+-------+-------+-------+-------+-------+-------+
+			|		|	D3	|	D2	|	D1	|	D0	|		|
+			|-------+-------+-------+-------+-------+-------|
+			| Data	|	L5	|	L4	|	L3	|	L2	|	L1	|
+			+-------+-------+-------+-------+-------+-------+
+			| Level	|	16	|	8	|	4	|	2	|	1	|
+			+-------+-------+-------+-------+-------+-------+
+			So the formula would be: Lvl = (Lvl << 1) | 1
+		*/
+		0, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31
+	};
+
 
 /* Test code to validate the envelope generator output for all posible shapes
 #include <cstdio>

@@ -37,7 +37,7 @@ public:
 	void			Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer);
 
 private:
-	AY::channel_t	m_Tone[3];
+	AY::tone_t		m_Tone[3];
 	AY::noise_t		m_Noise;
 	AY::envelope_t	m_Envelope;
 
