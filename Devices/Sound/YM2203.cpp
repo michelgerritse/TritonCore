@@ -145,21 +145,17 @@ void YM2203::Reset(ResetType Type)
 	/* Reset SSG tone generators */
 	for (auto& Tone : m_Tone)
 	{
-		memset(&Tone, 0, sizeof(AY::channel_t));
-		Tone.Volume = AY::Volume32[1];
+		memset(&Tone, 0, sizeof(AY::tone_t));
 	}
 
 	/* Reset SSG noise generator */
-	m_Noise.Counter = 0;
-	m_Noise.Period = 0;
-	m_Noise.Output = 0;
-	m_Noise.FlipFlop = 0;
+	memset(&m_Noise, 0, sizeof(AY::noise_t));
 	m_Noise.LFSR = 1 << (17 - 1);
 
 	/* Reset SSG envelope generator */
 	m_Envelope.Counter = 0;
 	m_Envelope.Period.u32 = 0;
-	m_Envelope.Volume = AY::Volume32[31];
+	m_Envelope.Amplitude = AY::Amplitude32[31];
 	m_Envelope.Step = 31;
 	m_Envelope.StepDec = 1;
 	m_Envelope.Hld = 1;
@@ -255,7 +251,7 @@ void YM2203::WriteSSG(uint8_t Register, uint8_t Data)
 	Register &= 0x0F;
 	m_Register[Register] = Data;
 
-	Data &= AY::Mask[Register];
+	Data &= AY::Mask[Register]; /* Mask unused bits after storing */
 
 	switch (Register)
 	{
@@ -298,17 +294,17 @@ void YM2203::WriteSSG(uint8_t Register, uint8_t Data)
 		break;
 
 	case 0x08: /* Channel A Amplitude Control */
-		m_Tone[0].Volume = AY::Volume32[((Data & 0x0F) << 1) | 1];
+		m_Tone[0].Amplitude = AY::Amplitude32[AY::MapLvl4to5[Data & 0x0F]];
 		m_Tone[0].AmpCtrl = (Data & 0x10) >> 4;
 		break;
 
 	case 0x09: /* Channel B Amplitude Control */
-		m_Tone[1].Volume = AY::Volume32[((Data & 0x0F) << 1) | 1];
+		m_Tone[1].Amplitude = AY::Amplitude32[AY::MapLvl4to5[Data & 0x0F]];
 		m_Tone[1].AmpCtrl = (Data & 0x10) >> 4;
 		break;
 
 	case 0x0A: /* Channel C Amplitude Control */
-		m_Tone[2].Volume = AY::Volume32[((Data & 0x0F) << 1) | 1];
+		m_Tone[2].Amplitude = AY::Amplitude32[AY::MapLvl4to5[Data & 0x0F]];
 		m_Tone[2].AmpCtrl = (Data & 0x10) >> 4;
 		break;
 
@@ -344,7 +340,7 @@ void YM2203::WriteSSG(uint8_t Register, uint8_t Data)
 		}
 
 		/* Set initial ouput volume */
-		m_Envelope.Volume = AY::Volume32[m_Envelope.Step ^ m_Envelope.Inv];
+		m_Envelope.Amplitude = AY::Amplitude32[m_Envelope.Step ^ m_Envelope.Inv];
 		break;
 
 	case 0x0E: /* I/O Port A Data Store */
@@ -574,6 +570,7 @@ void YM2203::UpdateSSG(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuff
 	m_CyclesToDoSSG = TotalCycles % (8 * m_PreScalerSSG);
 
 	int16_t Out;
+	uint32_t Mask;
 
 	while (Samples-- != 0)
 	{
@@ -598,19 +595,18 @@ void YM2203::UpdateSSG(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuff
 				m_Envelope.Inv ^= m_Envelope.Alt;
 			}
 
-			/* Apply output inversion and lookup volume */
-			m_Envelope.Volume = AY::Volume32[m_Envelope.Step ^ m_Envelope.Inv];
+			/* Apply output inversion and lookup amplitude */
+			m_Envelope.Amplitude = AY::Amplitude32[m_Envelope.Step ^ m_Envelope.Inv];
 		}
 
 		/* Update noise generator */
-		if ((m_Noise.Counter += 2) >= m_Noise.Period) //FIXME: should be += 1
+		if (m_Noise.Prescaler ^= 1)
 		{
-			/* Reset counter */
-			m_Noise.Counter = 0;
-
-			/* Update LFSR when flipflop transitioned from 0 to 1 */
-			if (m_Noise.FlipFlop ^= 1)
+			if ((m_Noise.Counter += 2) >= m_Noise.Period) //FIXME: should be += 1
 			{
+				/* Reset counter */
+				m_Noise.Counter = 0;
+
 				/* Update output flag */
 				m_Noise.Output = m_Noise.LFSR & 1;
 
@@ -627,32 +623,23 @@ void YM2203::UpdateSSG(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuff
 		{
 			auto& Tone = m_Tone[i];
 
-			Out = 0;
-
-			if (Tone.Period.u32 == 0)
+			if ((Tone.Counter += 2) >= Tone.Period.u32) //FIXME: should be += 1
 			{
-				Tone.Output = 1;
-			}
-			else
-			{
-				if ((Tone.Counter += 2) >= Tone.Period.u32) //FIXME: should be += 1
-				{
-					/* Reset counter */
-					Tone.Counter = 0;
+				/* Reset counter */
+				Tone.Counter = 0;
 
-					/* Toggle output flag */
-					Tone.Output ^= 1;
-				}
+				/* Toggle output flag */
+				Tone.Output ^= 1;
 			}
 
-			if ((Tone.Output | Tone.ToneDisable) & (m_Noise.Output | Tone.NoiseDisable))
-			{
-				/* Volume control */
-				Out = Tone.AmpCtrl ? m_Envelope.Volume : Tone.Volume;
-			}
+			/* Mix tone and noise (implemented as a mask) */
+			Mask = ~(((Tone.Output | Tone.ToneDisable) & (m_Noise.Output | Tone.NoiseDisable)) - 1);
+
+			/* Amplitude control */
+			Out = Tone.AmpCtrl ? m_Envelope.Amplitude : Tone.Amplitude;
 
 			/* 16-bit output */
-			OutBuffer[i]->WriteSampleS16(Out >> 1); //TODO: Validate output levels for the YM2203 - SSG part
+			OutBuffer[i]->WriteSampleS16(Out & Mask);
 		}
 	}
 }

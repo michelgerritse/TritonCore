@@ -122,7 +122,7 @@ private:
 	uint32_t	m_PreScalerOPN;		/* OPN Prescaler */
 	uint32_t	m_PreScalerSSG;		/* SSG Prescaler */
 
-	AY::channel_t	m_Tone[3];
+	AY::tone_t	m_Tone[3];
 	AY::noise_t		m_Noise;
 	AY::envelope_t	m_Envelope;
 
