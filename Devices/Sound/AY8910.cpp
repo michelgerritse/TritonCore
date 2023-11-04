@@ -49,7 +49,7 @@ void AY8910::Reset(ResetType Type)
 	/* Reset envelope generator */
 	m_Envelope.Counter = 0;
 	m_Envelope.Period.u32 = 0;
-	m_Envelope.Amplitude = AY::Amplitude16[15];
+	m_Envelope.Amplitude = AY::Amplitude16[15] + AY::DCOffset02V;
 	m_Envelope.Prescaler = 0;
 	m_Envelope.Step = 15;
 	m_Envelope.StepDec = 1;
