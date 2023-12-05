@@ -23,40 +23,10 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\SN76489.h">
       <Filter>Devices\Sound</Filter>
     </ClInclude>
-    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\SegaPCM.h">
-      <Filter>Devices\Sound</Filter>
-    </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)Interfaces\IMemoryAccess.h">
       <Filter>Interfaces</Filter>
     </ClInclude>
-    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\RF5C68.h">
-      <Filter>Devices\Sound</Filter>
-    </ClInclude>
-    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\MSM6295.h">
-      <Filter>Devices\Sound</Filter>
-    </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\ADPCM.h">
-      <Filter>Devices\Sound</Filter>
-    </ClInclude>
-    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YMZ280B.h">
-      <Filter>Devices\Sound</Filter>
-    </ClInclude>
-    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YM.h">
-      <Filter>Devices\Sound</Filter>
-    </ClInclude>
-    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YMW258F.h">
-      <Filter>Devices\Sound</Filter>
-    </ClInclude>
-    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YMF278B.h">
-      <Filter>Devices\Sound</Filter>
-    </ClInclude>
-    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YM2612.h">
-      <Filter>Devices\Sound</Filter>
-    </ClInclude>
-    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YM2203.h">
-      <Filter>Devices\Sound</Filter>
-    </ClInclude>
-    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\SegaPWM.h">
       <Filter>Devices\Sound</Filter>
     </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\AY8910.h">
@@ -65,11 +35,47 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\AY.h">
       <Filter>Devices\Sound</Filter>
     </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YM2203.h">
+      <Filter>Devices\Sound\Yamaha\OPN</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YM2612.h">
+      <Filter>Devices\Sound\Yamaha\OPN</Filter>
+    </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YM2149.h">
-      <Filter>Devices\Sound</Filter>
+      <Filter>Devices\Sound\Yamaha\SSG</Filter>
     </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YMZ284.h">
-      <Filter>Devices\Sound</Filter>
+      <Filter>Devices\Sound\Yamaha\SSG</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YM.h">
+      <Filter>Devices\Sound\Yamaha</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YMZ280B.h">
+      <Filter>Devices\Sound\Yamaha\PCMD8</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YMW258F.h">
+      <Filter>Devices\Sound\Yamaha\AWM</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YMF278B.h">
+      <Filter>Devices\Sound\Yamaha\OPL</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\SegaPCM.h">
+      <Filter>Devices\Sound\Sega</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\SegaPWM.h">
+      <Filter>Devices\Sound\Sega</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\MSM6295.h">
+      <Filter>Devices\Sound\Oki</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\RF5C68.h">
+      <Filter>Devices\Sound\Ricoh</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YM2608.h">
+      <Filter>Devices\Sound\Yamaha\OPN</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YM_RSS_ROM.h">
+      <Filter>Devices\Sound\Yamaha</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -82,46 +88,76 @@
     <Filter Include="Devices\Sound">
       <UniqueIdentifier>{65a3ecc4-0e48-4ed8-93ae-41e6fae6d289}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Devices\Sound\Yamaha">
+      <UniqueIdentifier>{712fe924-a4fc-48c7-a676-191bc862dda8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Devices\Sound\Yamaha\SSG">
+      <UniqueIdentifier>{52627c5e-2034-496d-b5ce-db08f14b810c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Devices\Sound\Yamaha\PCMD8">
+      <UniqueIdentifier>{58467392-639c-4f71-bab9-6d3cc832e793}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Devices\Sound\Yamaha\AWM">
+      <UniqueIdentifier>{3a629f32-28c9-4a48-97de-1ccaf114992c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Devices\Sound\Yamaha\OPL">
+      <UniqueIdentifier>{a691df57-97d6-4e23-9a11-d59695be8c5e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Devices\Sound\Sega">
+      <UniqueIdentifier>{361db174-8bfd-4d52-abdc-01e6a8446b89}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Devices\Sound\Ricoh">
+      <UniqueIdentifier>{fe5bc3e8-8d5a-4b55-89c4-975a6936ba35}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Devices\Sound\Yamaha\OPN">
+      <UniqueIdentifier>{134e4e3c-6bda-4733-bdaa-5b506c0b7086}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Devices\Sound\Oki">
+      <UniqueIdentifier>{dfe1414b-050f-454e-ab4e-b5d415154aa8}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\SegaPCM.cpp">
-      <Filter>Devices\Sound</Filter>
-    </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\RF5C68.cpp">
-      <Filter>Devices\Sound</Filter>
-    </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\MSM6295.cpp">
-      <Filter>Devices\Sound</Filter>
-    </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\ADPCM.cpp">
-      <Filter>Devices\Sound</Filter>
-    </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\YMZ280B.cpp">
-      <Filter>Devices\Sound</Filter>
-    </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\YMW258F.cpp">
-      <Filter>Devices\Sound</Filter>
-    </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\YMF278B.cpp">
-      <Filter>Devices\Sound</Filter>
-    </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\YM2612.cpp">
-      <Filter>Devices\Sound</Filter>
-    </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\YM2203.cpp">
-      <Filter>Devices\Sound</Filter>
-    </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\SegaPWM.cpp">
       <Filter>Devices\Sound</Filter>
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\AY8910.cpp">
       <Filter>Devices\Sound</Filter>
     </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\YM2203.cpp">
+      <Filter>Devices\Sound\Yamaha\OPN</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\YM2612.cpp">
+      <Filter>Devices\Sound\Yamaha\OPN</Filter>
+    </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\YM2149.cpp">
-      <Filter>Devices\Sound</Filter>
+      <Filter>Devices\Sound\Yamaha\SSG</Filter>
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\YMZ284.cpp">
-      <Filter>Devices\Sound</Filter>
+      <Filter>Devices\Sound\Yamaha\SSG</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\YMZ280B.cpp">
+      <Filter>Devices\Sound\Yamaha\PCMD8</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\YMW258F.cpp">
+      <Filter>Devices\Sound\Yamaha\AWM</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\YMF278B.cpp">
+      <Filter>Devices\Sound\Yamaha\OPL</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\SegaPCM.cpp">
+      <Filter>Devices\Sound\Sega</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\SegaPWM.cpp">
+      <Filter>Devices\Sound\Sega</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\MSM6295.cpp">
+      <Filter>Devices\Sound\Oki</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\RF5C68.cpp">
+      <Filter>Devices\Sound\Ricoh</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\YM2608.cpp">
+      <Filter>Devices\Sound\Yamaha\OPN</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
