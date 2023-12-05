@@ -34,7 +34,6 @@ public:
 	uint32_t		GetClockSpeed();
 	void			Write(uint32_t Address, uint32_t Data);
 	void			Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer);
-	void			Update2(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer);
 
 private:
 
@@ -133,7 +132,6 @@ private:
 	uint32_t	m_LfoEnable;		/* LFO enable flag */
 
 	uint32_t	m_ClockSpeed;
-	uint32_t	m_ClockDivider;
 	uint32_t	m_CyclesToDo;
 
 	void		WriteMode(uint8_t Register, uint8_t Data);

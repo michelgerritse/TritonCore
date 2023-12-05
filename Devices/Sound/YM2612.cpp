@@ -99,17 +99,17 @@ enum CHAN_NAME
 	CH1 = 0, CH2, CH3, CH4, CH5, CH6
 };
 
-static const uint32_t SlotOrder[24] =
-{
-	 0 + S1,  4 + S1,  8 + S1,  12 + S1, 16 + S1, 20 + S1, /* Channel 1 - 6: Slot 1 */
-	 0 + S3,  4 + S3,  8 + S3,  12 + S3, 16 + S3, 20 + S3, /* Channel 1 - 6: Slot 3 */
-	 0 + S2,  4 + S2,  8 + S2,  12 + S2, 16 + S2, 20 + S2, /* Channel 1 - 6: Slot 2 */
-	 0 + S4,  4 + S4,  8 + S4,  12 + S4, 16 + S4, 20 + S4  /* Channel 1 - 6: Slot 4 */
-};
+/* Slot mapping */
+constexpr uint32_t GetSlotId(uint32_t ChannelName, uint32_t SlotName)
+{ 
+	return (ChannelName << 2) + SlotName; 
+}
+
+/* FM Prescaler */
+constexpr uint32_t Prescaler = 6;
 
 YM2612::YM2612(uint32_t ClockSpeed) :
-	m_ClockSpeed(ClockSpeed),
-	m_ClockDivider(6 * 24)
+	m_ClockSpeed(ClockSpeed)
 {
 	YM::OPN::BuildTables();
 
@@ -190,7 +190,7 @@ void YM2612::Reset(ResetType Type)
 	{
 		memset(&Channel, 0, sizeof(CHANNEL));
 
-		/* All channels are ON by default */
+		/* All channels are ON by default for OPN compatibility */
 		Channel.MaskL = OUTPUT_MASK;
 		Channel.MaskR = OUTPUT_MASK;
 	}
@@ -209,7 +209,7 @@ bool YM2612::EnumAudioOutputs(uint32_t OutputNr, AUDIO_OUTPUT_DESC& Desc)
 {
 	if (OutputNr == 0)
 	{
-		Desc.SampleRate = m_ClockSpeed / m_ClockDivider;
+		Desc.SampleRate = m_ClockSpeed / (Prescaler * 24);
 		Desc.SampleFormat = 0;
 		Desc.Channels = 2;
 		Desc.ChannelMask = SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT;
@@ -236,12 +236,15 @@ void YM2612::Write(uint32_t Address, uint32_t Data)
 	/* 8-bit data bus (D0 - D7) */
 	Data &= 0xFF;
 
-	switch (Address & 0x03) /* 2-bit address bus (A0 - A1) */
+	/* 2-bit address bus (A0 - A1) */
+	Address &= 0x03;
+
+	switch (Address)
 	{
 	case 0x00: /* Address write mode */
 	case 0x02:
 		m_AddressLatch = Data;
-		m_PortLatch = (Address & 0x02) >> 1;
+		m_PortLatch = Address >> 1;
 		break;
 
 	case 0x01: /* Data write mode */
@@ -476,88 +479,11 @@ void YM2612::WriteFM(uint8_t Register, uint8_t Port, uint8_t Data)
 	}
 }
 
-void YM2612::Update2(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
-{
-	uint32_t TotalCycles = ClockCycles + m_CyclesToDo;
-	uint32_t Samples = TotalCycles / m_ClockDivider;
-	m_CyclesToDo = TotalCycles % m_ClockDivider;
-
-	int32_t OutL;
-	int32_t OutR;
-
-	while (Samples != 0)
-	{
-		OutL = 0;
-		OutR = 0;
-
-		/* Update Timer A, Timer B and LFO */
-		UpdateTimers();
-		UpdateLFO();
-
-		/* Update Envelope Generator clock */
-		m_EgClock = (m_EgClock + 1) % 3;
-		
-		/* Update Envelope Generator counter */
-		m_EgCounter += (m_EgClock >> 1);
-		m_EgCounter += (m_EgCounter >> 12); /* Overflow bug in the OPN unit */
-		m_EgCounter &= 0xFFF;
-
-		/* Update slots (operators) */
-		for (auto &Slot : SlotOrder)
-		{
-			PrepareSlot(Slot);
-			UpdatePhaseGenerator(Slot);
-			UpdateEnvelopeGenerator(Slot);
-			UpdateOperatorUnit(Slot);
-		}
-
-		/* Note: The output of the YM2612 is multiplexed
-		Channel output order is: 1-5-3-2-6-4 */
-		//TODO: 9-bit DAC emulation
-		UpdateAccumulator(0);
-		UpdateAccumulator(1);
-		UpdateAccumulator(2);
-		UpdateAccumulator(3);
-		UpdateAccumulator(4);
-
-		if (m_DacSelect) m_Channel[5].Output = m_DacData << 5;
-		else UpdateAccumulator(5);
-
-		OutL += (m_Channel[0].Output & m_Channel[0].MaskL);
-		OutR += (m_Channel[0].Output & m_Channel[0].MaskR);
-
-		OutL += (m_Channel[1].Output & m_Channel[1].MaskL);
-		OutR += (m_Channel[1].Output & m_Channel[1].MaskR);
-
-		OutL += (m_Channel[2].Output & m_Channel[2].MaskL);
-		OutR += (m_Channel[2].Output & m_Channel[2].MaskR);
-
-		OutL += (m_Channel[3].Output & m_Channel[3].MaskL);
-		OutR += (m_Channel[3].Output & m_Channel[3].MaskR);
-
-		OutL += (m_Channel[4].Output & m_Channel[4].MaskL);
-		OutR += (m_Channel[4].Output & m_Channel[4].MaskR);
-
-		OutL += (m_Channel[5].Output & m_Channel[5].MaskL);
-		OutR += (m_Channel[5].Output & m_Channel[5].MaskR);
-		
-		/* Limiter (signed 16-bit) */
-		OutL = std::clamp(OutL, -32768, 32767);
-		OutR = std::clamp(OutR, -32768, 32767);
-
-		/* 16-bit DAC output (interleaved) */
-		OutBuffer[0]->WriteSampleS16(OutL);
-		OutBuffer[0]->WriteSampleS16(OutR);
-
-		Samples--;
-	}
-}
-
 void YM2612::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
 {
 	uint32_t TotalCycles = ClockCycles + m_CyclesToDo;
-	uint32_t Cycles = TotalCycles / 6;
-	m_CyclesToDo = TotalCycles % 6;
+	uint32_t Cycles = TotalCycles / Prescaler;
+	m_CyclesToDo = TotalCycles % Prescaler;
 
 	int32_t Mol;
 	int32_t Mor;
@@ -569,6 +495,13 @@ void YM2612::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
 		case 0:
 			UpdateTimers();
 
+			PrepareSlot(GetSlotId(CH1, S1));
+			UpdatePhaseGenerator(GetSlotId(CH1, S1));
+			UpdateEnvelopeGenerator(GetSlotId(CH1, S1));
+			UpdateOperatorUnit(GetSlotId(CH1, S1));
+			break;
+
+		case 1:
 			/* Update Envelope Generator clock */
 			m_EgClock = (m_EgClock + 1) % 3;
 
@@ -576,82 +509,179 @@ void YM2612::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
 			m_EgCounter += (m_EgClock >> 1);
 			m_EgCounter += (m_EgCounter >> 12); /* Overflow bug in the OPN unit */
 			m_EgCounter &= 0xFFF;
-			break;
 
-		case 1:
+			PrepareSlot(GetSlotId(CH2, S1));
+			UpdatePhaseGenerator(GetSlotId(CH2, S1));
+			UpdateEnvelopeGenerator(GetSlotId(CH2, S1));
+			UpdateOperatorUnit(GetSlotId(CH2, S1));
 			break;
 
 		case 2:
+			PrepareSlot(GetSlotId(CH3, S1));
+			UpdatePhaseGenerator(GetSlotId(CH3, S1));
+			UpdateEnvelopeGenerator(GetSlotId(CH3, S1));
+			UpdateOperatorUnit(GetSlotId(CH3, S1));
 			break;
 
 		case 3:
+			PrepareSlot(GetSlotId(CH4, S1));
+			UpdatePhaseGenerator(GetSlotId(CH4, S1));
+			UpdateEnvelopeGenerator(GetSlotId(CH4, S1));
+			UpdateOperatorUnit(GetSlotId(CH4, S1));
+
 			UpdateAccumulator(CH2);
 			break;
 
 		case 4:
+			PrepareSlot(GetSlotId(CH5, S1));
+			UpdatePhaseGenerator(GetSlotId(CH5, S1));
+			UpdateEnvelopeGenerator(GetSlotId(CH5, S1));
+			UpdateOperatorUnit(GetSlotId(CH5, S1));
 			break;
 
 		case 5:
+			PrepareSlot(GetSlotId(CH6, S1));
+			UpdatePhaseGenerator(GetSlotId(CH6, S1));
+			UpdateEnvelopeGenerator(GetSlotId(CH6, S1));
+			UpdateOperatorUnit(GetSlotId(CH6, S1));
 			break;
 
 		case 6:
+			PrepareSlot(GetSlotId(CH1, S3));
+			UpdatePhaseGenerator(GetSlotId(CH1, S3));
+			UpdateEnvelopeGenerator(GetSlotId(CH1, S3));
+			UpdateOperatorUnit(GetSlotId(CH1, S3));
 			break;
 
 		case 7:
+			PrepareSlot(GetSlotId(CH2, S3));
+			UpdatePhaseGenerator(GetSlotId(CH2, S3));
+			UpdateEnvelopeGenerator(GetSlotId(CH2, S3));
+			UpdateOperatorUnit(GetSlotId(CH2, S3));
+
 			if (m_DacSelect) m_Channel[CH6].Output = m_DacData << 5;
 			else UpdateAccumulator(CH6);
 			break;
 
 		case 8:
+			PrepareSlot(GetSlotId(CH3, S3));
+			UpdatePhaseGenerator(GetSlotId(CH3, S3));
+			UpdateEnvelopeGenerator(GetSlotId(CH3, S3));
+			UpdateOperatorUnit(GetSlotId(CH3, S3));
 			break;
 
 		case 9:
+			PrepareSlot(GetSlotId(CH4, S3));
+			UpdatePhaseGenerator(GetSlotId(CH4, S3));
+			UpdateEnvelopeGenerator(GetSlotId(CH4, S3));
+			UpdateOperatorUnit(GetSlotId(CH4, S3));
 			break;
 
 		case 10:
+			PrepareSlot(GetSlotId(CH5, S3));
+			UpdatePhaseGenerator(GetSlotId(CH5, S3));
+			UpdateEnvelopeGenerator(GetSlotId(CH5, S3));
+			UpdateOperatorUnit(GetSlotId(CH5, S3));
 			break;
 
 		case 11:
+			PrepareSlot(GetSlotId(CH6, S3));
+			UpdatePhaseGenerator(GetSlotId(CH6, S3));
+			UpdateEnvelopeGenerator(GetSlotId(CH6, S3));
+			UpdateOperatorUnit(GetSlotId(CH6, S3));
+
 			UpdateAccumulator(CH4);
 			break;
 
 		case 12:
+			PrepareSlot(GetSlotId(CH1, S2));
+			UpdatePhaseGenerator(GetSlotId(CH1, S2));
+			UpdateEnvelopeGenerator(GetSlotId(CH1, S2));
+			UpdateOperatorUnit(GetSlotId(CH1, S2));
 			break;
 
 		case 13:
+			PrepareSlot(GetSlotId(CH2, S2));
+			UpdatePhaseGenerator(GetSlotId(CH2, S2));
+			UpdateEnvelopeGenerator(GetSlotId(CH2, S2));
+			UpdateOperatorUnit(GetSlotId(CH2, S2));
 			break;
 
 		case 14:
+			PrepareSlot(GetSlotId(CH3, S2));
+			UpdatePhaseGenerator(GetSlotId(CH3, S2));
+			UpdateEnvelopeGenerator(GetSlotId(CH3, S2));
+			UpdateOperatorUnit(GetSlotId(CH3, S2));
 			break;
 
 		case 15:
+			PrepareSlot(GetSlotId(CH4, S2));
+			UpdatePhaseGenerator(GetSlotId(CH4, S2));
+			UpdateEnvelopeGenerator(GetSlotId(CH4, S2));
+			UpdateOperatorUnit(GetSlotId(CH4, S2));
+
 			UpdateAccumulator(CH1);
 			break;
 
 		case 16:
+			PrepareSlot(GetSlotId(CH5, S2));
+			UpdatePhaseGenerator(GetSlotId(CH5, S2));
+			UpdateEnvelopeGenerator(GetSlotId(CH5, S2));
+			UpdateOperatorUnit(GetSlotId(CH5, S2));
 			break;
 
 		case 17:
+			PrepareSlot(GetSlotId(CH6, S2));
+			UpdatePhaseGenerator(GetSlotId(CH6, S2));
+			UpdateEnvelopeGenerator(GetSlotId(CH6, S2));
+			UpdateOperatorUnit(GetSlotId(CH6, S2));
 			break;
 
 		case 18:
+			PrepareSlot(GetSlotId(CH1, S4));
+			UpdatePhaseGenerator(GetSlotId(CH1, S4));
+			UpdateEnvelopeGenerator(GetSlotId(CH1, S4));
+			UpdateOperatorUnit(GetSlotId(CH1, S4));
 			break;
 
 		case 19:
+			PrepareSlot(GetSlotId(CH2, S4));
+			UpdatePhaseGenerator(GetSlotId(CH2, S4));
+			UpdateEnvelopeGenerator(GetSlotId(CH2, S4));
+			UpdateOperatorUnit(GetSlotId(CH2, S4));
+
 			UpdateAccumulator(CH5);
 			break;
 
 		case 20:
+			PrepareSlot(GetSlotId(CH3, S4));
+			UpdatePhaseGenerator(GetSlotId(CH3, S4));
+			UpdateEnvelopeGenerator(GetSlotId(CH3, S4));
+			UpdateOperatorUnit(GetSlotId(CH3, S4));
 			break;
 
 		case 21:
+			PrepareSlot(GetSlotId(CH4, S4));
+			UpdatePhaseGenerator(GetSlotId(CH4, S4));
+			UpdateEnvelopeGenerator(GetSlotId(CH4, S4));
+			UpdateOperatorUnit(GetSlotId(CH4, S4));
 			break;
 
 		case 22:
+			PrepareSlot(GetSlotId(CH5, S4));
+			UpdatePhaseGenerator(GetSlotId(CH5, S4));
+			UpdateEnvelopeGenerator(GetSlotId(CH5, S4));
+			UpdateOperatorUnit(GetSlotId(CH5, S4));
 			break;
 
 		case 23:
 			UpdateLFO();
+
+			PrepareSlot(GetSlotId(CH6, S4));
+			UpdatePhaseGenerator(GetSlotId(CH6, S4));
+			UpdateEnvelopeGenerator(GetSlotId(CH6, S4));
+			UpdateOperatorUnit(GetSlotId(CH6, S4));
+
 			UpdateAccumulator(CH3);
 
 			Mol = 0;
@@ -685,13 +715,6 @@ void YM2612::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
 			OutBuffer[0]->WriteSampleS16(Mor);
 			break;
 		}
-
-		uint32_t SlotID = SlotOrder[m_Cycle % 24];
-		
-		PrepareSlot(SlotID);
-		UpdatePhaseGenerator(SlotID);
-		UpdateEnvelopeGenerator(SlotID);
-		UpdateOperatorUnit(SlotID);
 
 		/* Move to next cycle */
 		m_Cycle = (m_Cycle + 1) % 24;
@@ -916,7 +939,10 @@ void YM2612::UpdateAccumulator(uint32_t ChannelId)
 	}
 
 	/* Limiter (signed 14-bit) */
-	m_Channel[ChannelId].Output = std::clamp<int16_t>(Output, -8192, 8191);
+	m_Channel[ChannelId].Output = std::clamp<int16_t>(Output, -8192, 8191) & 0xFFE0;
+
+	if ((m_Channel[ChannelId].Output >> 5) >= 0)
+		m_Channel[ChannelId].Output += 1 << 5;
 }
 
 int16_t YM2612::GetModulation(uint32_t Cycle)
