@@ -25,6 +25,21 @@ namespace OKI::ADPCM
 	void Decode(uint8_t Nibble, int32_t* pStep, int16_t* pSignal);
 }
 
+namespace YM::ADPCMA
+{
+	/* Initialize the Yamaha ADPCM-A decoder */
+	void InitDecoder();
+	
+	/* Decode a nibble */
+	void Decode(uint8_t Nibble, int32_t* pStep, int16_t* pSignal);
+}
+
+namespace YM::ADPCMB
+{
+	/* Decode a nibble */
+	void Decode(uint8_t Nibble, int32_t* pStep, int16_t* pSignal);
+}
+
 namespace YM::ADPCMZ
 {
 	/* Decode a nibble */
