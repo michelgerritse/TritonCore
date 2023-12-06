@@ -15,9 +15,10 @@ See LICENSE.txt in the root directory of this source tree.
 #define _NULLSOUND_H_
 
 #include "../../Interfaces/ISoundDevice.h"
+#include "../../Interfaces/IMemoryAccess.h"
 
 /* NULL sound device */
-class NullSound : public ISoundDevice
+class NullSound : public ISoundDevice, public IMemoryAccess
 {
 public:
 	NullSound() {};
@@ -47,12 +48,19 @@ public:
 	uint32_t GetClockSpeed()
 	{
 		return 0;
-	};
+	}
 	
 	void Write(uint32_t Address, uint32_t Data)
 	{}
 	
 	void Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
+	{}
+
+	/* IMemoryAccess methods */
+	void CopyToMemory(size_t Offset, uint8_t* Data, size_t Size)
+	{}
+
+	void CopyToMemoryIndirect(size_t Offset, uint8_t* Data, size_t Size)
 	{}
 };
 
