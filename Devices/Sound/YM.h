@@ -18,6 +18,55 @@ See LICENSE.txt in the root directory of this source tree.
 
 namespace YM /* Yamaha */
 {
+	/* ADPCM-A data type */
+	struct adpcma_t
+	{
+		struct channel_t
+		{
+			uint32_t KeyOn;			/* Key On / Off (flag) */
+
+			uint32_t Level;			/* Channel level (5-bit) */
+			 int16_t OutL;			/* Channel L output */
+			 int16_t OutR;			/* Channel R output */
+			uint32_t MaskL;			/* Channel L output mask */
+			uint32_t MaskR;			/* Channel R output mask */
+
+			pair32_t Start;			/* Start address (16-bit) */
+			pair32_t End;			/* End address (16-bit) */
+			uint32_t Addr;			/* Current address (16-bit) */
+
+			 int16_t Signal;		/* Decoded ADPCM-A signal */
+			 int32_t Step;			/* ADPCM-A step */
+			uint32_t NibbleShift;	/* Nibble selection shift */
+		};
+
+		uint32_t	TotalLevel;
+		channel_t	Channel[6];
+	};
+
+	/* ADPCM-B data type */
+	struct adpcmb_t
+	{
+		uint8_t		Ctrl1;			/* Control 1 (8-bit) */
+		pair32_t	Start;			/* Start address (16-bit) */
+		pair32_t	Stop;			/* Stop address (16-bit) */
+		pair32_t	Limit;			/* Limit address (16-bit) */
+		pair32_t	Prescale;		/* Encoder prescaler (10-bit) */
+		pair32_t	DeltaN;			/* Frequency delta (16-bit) */
+		uint8_t		LevelCtrl;		/* Level control (8-bit) */
+		uint32_t	MaskL;			/* Channel L output mask */
+		uint32_t	MaskR;			/* Channel R output mask */
+
+		uint32_t	AddrCount;		/* Memory address count */
+		pair32_t	AddrDelta;		/* Memory address delta */
+		uint32_t	AddrShift;		/* Memory address shift */
+
+		int16_t		Signal;			/* Decoded ADPCM-B signal */
+		int16_t		SignalPrev;		/* Previous decoded ADPCM-B signal */
+		int32_t		Step;			/* ADPCM-B step */
+		uint32_t	NibbleShift;	/* Nibble selection shift */
+	};
+
 	/* Half period log-sin table */
 	static const uint16_t SineTable[512] =
 	{
@@ -202,6 +251,100 @@ namespace OPL /* FM Operator Type-L */
 
 namespace OPN /* FM Operator Type-N */
 {
+	/* Operator data type */
+	struct operator_t
+	{
+		uint32_t	KeyOn;			/* Key on/off state */
+		uint32_t	KeyLatch;		/* Latched Key on/off flag */
+		uint32_t	CsmKeyLatch;	/* Latched CSM Key on/off flag */
+
+		uint32_t	FNum;			/* Frequency Nr. (11-bit) */
+		uint32_t	Block;			/* Block (3-bit) */
+		uint32_t	KeyCode;		/* Key code (5-bit) */
+
+		uint32_t	Detune;			/* Detune (3-bit) */
+		uint32_t	Multi;			/* Multiplier (4-bit) */
+		uint32_t	TotalLevel;		/* Total level (7-bit) */
+		uint32_t	KeyScale;		/* Key scale (2-bit) */
+		uint16_t	SustainLvl;		/* Sustain level (4-bit) */
+		uint32_t	AmOn;			/* LFO-AM on/off mask */
+
+		uint32_t	SsgEnable;		/* SSG-EG Enable flag */
+		uint32_t	SsgEgInv;		/* SSG-EG Inversion mode flag */
+		uint32_t	SsgEgAlt;		/* SSG-EG Alternate mode flag */
+		uint32_t	SsgEgHld;		/* SSG-EG Hold mode flag */
+		uint32_t	SsgEgInvOut;	/* SSG-EG Inverted output flag */
+
+		uint32_t	EgRate[4];		/* Envelope rates (5-bit) */
+		uint32_t	EgPhase;		/* Envelope phase */
+		uint16_t	EgLevel;		/* Envelope internal level (10-bit) */
+		uint16_t	EgOutput;		/* Envelope output (12-bit) */
+
+		uint32_t	PgPhase;		/* Phase counter (20-bit) */
+
+		int16_t		Output[2];		/* Operator output (14-bit) */
+	};
+
+	/* Channel data type */
+	struct channel_t
+	{
+		uint32_t	FNum;			/* Frequency Nr. (11-bit) */
+		uint32_t	Block;			/* Block (3-bit) */
+		uint32_t	KeyCode;		/* Key code (5-bit) */
+		uint32_t	Algo;			/* Algorithm (3-bit) */
+		uint32_t	AMS;			/* LFO-AM sensitivity (2-bit) */
+		uint32_t	PMS;			/* LFO-PM sensitivity (3-bit) */
+		uint32_t	FB;				/* Feedback (3-bit) */
+		uint32_t	MaskL;			/* Channel L output mask */
+		uint32_t	MaskR;			/* Channel R output mask */
+		int16_t		Output;			/* Channel output (14-bit) */
+	};
+
+	/* Timer data type */
+	struct timer_t
+	{
+		uint32_t	Load;			/* Start / stop state */
+		uint32_t	Enable;			/* Overflag flag generation enable */
+		uint32_t	Period;			/* Period */
+		uint32_t	Counter;		/* Counter */
+	};
+
+	/* LFO data type */
+	struct lfo_t
+	{
+		uint32_t	Enable;			/* Enable flag */
+		uint32_t	Period;			/* Period */
+		uint32_t	Counter;		/* Counter */
+		uint32_t	Step;			/* Step counter (7-bit) */
+	};
+	
+	/* OPNA data type */
+	struct opna_t
+	{
+		operator_t	Slot[24];
+		channel_t	Channel[6];
+		timer_t		TimerA;
+		timer_t		TimerB;
+		lfo_t		LFO;
+
+		uint8_t		FNumLatch;			/* Fnum2 / Block latch (6-bit) */
+		uint8_t		FNumLatch3CH;		/* 3CH Fnum2 / Block latch mode (6-bit) */
+		uint32_t	FNum3CH[3];			/* 3CH Frequency Nr. (11+1-bit) */
+		uint32_t	Block3CH[3];		/* 3CH Block (3-bit) */
+		uint32_t	KeyCode3CH[3];		/* 3CH Key code (5-bit) */
+
+		uint32_t	EgCounter;			/* EG counter (12-bit) */
+		uint32_t	EgClock;			/* EG clock (/3 divisor) */
+
+		uint32_t	Mode3CH;			/* 3CH Mode enable flag */
+		uint32_t	ModeCSM;			/* CSM Mode enable flag */
+		uint32_t	ModeSCH;			/* SCH Mode enable flag */
+		
+		uint8_t		Status;				/* Status register (8-bit) */
+		uint8_t		FlagCtrl;			/* Flag control register (8-bit) */
+		uint8_t		IrqEnable;			/* IRQ enable flags */
+	};
+	
 	static uint32_t LfoAmTable[128][4];
 	static  int32_t LfoPmTable[128][32][8];
 	

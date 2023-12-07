@@ -74,7 +74,7 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YM2608.h">
       <Filter>Devices\Sound\Yamaha\OPN</Filter>
     </ClInclude>
-    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YM_RSS_ROM.h">
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YM_RSS.h">
       <Filter>Devices\Sound\Yamaha</Filter>
     </ClInclude>
   </ItemGroup>
