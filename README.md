@@ -11,6 +11,7 @@ The following sound devices are emulated:
 - SegaPCM
 - Texas Instruments SN76489 (family/clones)
 - Yamaha YM2203
+- Yamaha YM2608
 - Yamaha YM2612
 - Yamaha YMF278B (PCM only at this moment)
 - Yamaha YMW258F
