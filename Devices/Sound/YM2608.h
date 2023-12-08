@@ -56,16 +56,16 @@ private:
 	YM::OPN::opna_t m_OPN;				/* OPN unit */
 	YM::adpcma_t	m_ADPCM_A;			/* ADPCM-A unit */
 	YM::adpcmb_t	m_ADPCM_B;			/* ADPCM-B unit */
-	uint32_t		m_RhythmChannels;	/* ADPCM-A channel alternate (4 / 6) */
+	uint32_t		m_RhythmChannels;	/* ADPCM-A channel alternating (4 / 6) */
 
 	std::array<uint8_t, 16>			m_Register;
 	std::array<uint8_t, 16'777'216>	m_MemoryADPCMB;	/* 16MB ADPCM-B memory */
 
 	uint32_t	m_ClockSpeed;
+	 int32_t	m_ClockADPCMA;
+	 int32_t	m_ClockADPCMB;
 	uint32_t	m_CyclesToDoSSG;
 	uint32_t	m_CyclesToDoOPN;
-	uint32_t	m_CyclesToDoADPCMA;
-	uint32_t	m_CyclesToDoADPCMB;
 
 	void		WriteSSG(uint8_t Address, uint8_t Data);
 	void		WriteRSS(uint8_t Address, uint8_t Data);
@@ -75,8 +75,9 @@ private:
 
 	void		UpdateSSG(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer);
 	void		UpdateOPN(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer);
-	void		UpdateADPCMA(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer);
-	void		UpdateADPCMB(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer);
+	
+	void		UpdateADPCMA();
+	void		UpdateADPCMB();
 
 	void		PrepareSlot(uint32_t SlotId);
 	void		UpdatePhaseGenerator(uint32_t SlotId);

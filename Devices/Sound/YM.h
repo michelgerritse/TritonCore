@@ -40,8 +40,10 @@ namespace YM /* Yamaha */
 			uint32_t NibbleShift;	/* Nibble selection shift */
 		};
 
-		uint32_t	TotalLevel;
 		channel_t	Channel[6];
+		uint32_t	TotalLevel;
+		 int16_t	OutL;
+		 int16_t	OutR;
 	};
 
 	/* ADPCM-B data type */
@@ -56,13 +58,15 @@ namespace YM /* Yamaha */
 		uint8_t		LevelCtrl;		/* Level control (8-bit) */
 		uint32_t	MaskL;			/* Channel L output mask */
 		uint32_t	MaskR;			/* Channel R output mask */
+		 int16_t	OutL;			/* Channel L output */
+		 int16_t	OutR;			/* Channel R output */
 
 		uint32_t	AddrCount;		/* Memory address count */
 		pair32_t	AddrDelta;		/* Memory address delta */
 		uint32_t	AddrShift;		/* Memory address shift */
 
-		int16_t		Signal;			/* Decoded ADPCM-B signal */
-		int16_t		SignalPrev;		/* Previous decoded ADPCM-B signal */
+		int16_t		SignalT1;		/* Decoded ADPCM-B signal */
+		int16_t		SignalT0;		/* Previous decoded ADPCM-B signal */
 		int32_t		Step;			/* ADPCM-B step */
 		uint32_t	NibbleShift;	/* Nibble selection shift */
 	};

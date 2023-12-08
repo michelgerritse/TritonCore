@@ -34,23 +34,22 @@ See LICENSE.txt in the root directory of this source tree.
 
 	Needs validation:
 	- The attenuation levels of the RSS instruments are 4.2 fixed point according to the manual, I think it is 3.3
-		    |  D5  |  D4  |  D3  |  D2  |  D1  |  D0  |
+	        |  D5  |  D4  |  D3  |  D2  |  D1  |  D0  |
 		dB  |  24  |  12  |   6  |   3  | 1.5  | 0.75 |
 
 		vs.
 
-			|  D5  |  D4  |  D3  |  D2  |  D1  |  D0  |
+	        |  D5  |  D4  |  D3  |  D2  |  D1  |  D0  |
 		dB  |  12  |   6  |   3  | 1.5  | 0.75 |0.375 |
 
 	Needs fixing:
-	- Mix ADPCM-A and B with OPN output
 	- Currently using a simplified OPN generation method. No 24-stage pipeline yet
 
 	Not implemented:
 	 - Interrupts
 	 - SSG IO ports
 	 - ADPCM-B encoding from CPU or memory
-	 - ADPCM-B decoding from memory
+	 - ADPCM-B decoding from CPU
 	 - ADPCM-B memory read/write to/from CPU
 	 - OPN / SSG prescalers. Code is there but disabled due to my underlying sound engine not supporting sample rates above 200kHz
 */
@@ -86,10 +85,8 @@ See LICENSE.txt in the root directory of this source tree.
 /* Audio output enumeration */
 enum AudioOut
 {
-	OutputSSG = 0,
-	OutputOPN,
-	OutputADPCMA,
-	OutputADPCMB
+	SSG = 0,
+	OPN,
 };
 
 /* Slot naming */
@@ -140,12 +137,13 @@ void YM2608::Reset(ResetType Type)
 {
 	m_CyclesToDoSSG = 0;
 	m_CyclesToDoOPN = 0;
-	m_CyclesToDoADPCMA = 0;
-	m_CyclesToDoADPCMB = 0;
 
 	/* Reset prescalers */
 	//m_PreScalerOPN = 6;
 	//m_PreScalerSSG = 4;
+
+	m_ClockADPCMA = 24 * 6 * 3;
+	m_ClockADPCMB = 24 * 6;
 
 	/* Reset latches */
 	m_AddressLatch = 0;
@@ -232,7 +230,7 @@ bool YM2608::EnumAudioOutputs(uint32_t OutputNr, AUDIO_OUTPUT_DESC& Desc)
 {
 	switch (OutputNr)
 	{
-	case AudioOut::OutputSSG: /* SSG - Analog Out */
+	case AudioOut::SSG: /* SSG - Analog Out */
 		Desc.SampleRate = m_ClockSpeed / (16 * m_PreScalerSSG);
 		Desc.SampleFormat = 0;
 		Desc.Channels = 1;
@@ -240,28 +238,12 @@ bool YM2608::EnumAudioOutputs(uint32_t OutputNr, AUDIO_OUTPUT_DESC& Desc)
 		Desc.Description = L"Analog Out";
 		break;
 
-	case AudioOut::OutputOPN: /* FM */
+	case AudioOut::OPN: /* FM */
 		Desc.SampleRate = m_ClockSpeed / (24 * m_PreScalerOPN);
 		Desc.SampleFormat = 0;
 		Desc.Channels = 2;
 		Desc.ChannelMask = SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT;
-		Desc.Description = L"FM";
-		break;
-
-	case AudioOut::OutputADPCMA: /* ADPCM-A */
-		Desc.SampleRate = m_ClockSpeed / (72 * 6);
-		Desc.SampleFormat = 0;
-		Desc.Channels = 2;
-		Desc.ChannelMask = SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT;
-		Desc.Description = L"ADPCM-A";
-		break;
-
-	case AudioOut::OutputADPCMB: /* ADPCM-B */
-		Desc.SampleRate = m_ClockSpeed / (24 * 6);
-		Desc.SampleFormat = 0;
-		Desc.Channels = 2;
-		Desc.ChannelMask = SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT;
-		Desc.Description = L"ADPCM-B";
+		Desc.Description = L"FM + ADPCM";
 		break;
 
 	default:
@@ -574,8 +556,8 @@ void YM2608::WriteADPCMB(uint8_t Address, uint8_t Data)
 			m_ADPCM_B.AddrCount = m_ADPCM_B.Start.u32 << m_ADPCM_B.AddrShift;
 			m_ADPCM_B.AddrDelta = 0;
 
-			m_ADPCM_B.Signal = 0;
-			m_ADPCM_B.SignalPrev = 0;
+			m_ADPCM_B.SignalT1 = 0;
+			m_ADPCM_B.SignalT0 = 0;
 			m_ADPCM_B.Step = 127;
 			m_ADPCM_B.NibbleShift = 4;
 		}
@@ -776,7 +758,7 @@ void YM2608::WriteFM(uint8_t Address, uint8_t Port, uint8_t Data)
 	/* Slot address mapping: S1 - S3 - S2 - S4 */
 	static const int32_t SlotMap[2][16] =
 	{
-		{  0,  4,  8, -1,  2,  6, 10, -1,  1,  5,  9, -1,  3,  7, 11, -1 }, /* Channel 1-2-3 (port 0) */
+		{  0,  4,  8, -1,  2,  6, 10, -1,  1,  5,  9, -1,  3,  7, 11, -1 },	/* Channel 1-2-3 (port 0) */
 		{ 12, 16, 20, -1, 14, 18, 22, -1, 13, 17, 21, -1, 15, 19, 23, -1 }	/* Channel 4-5-6 (port 1) */
 	};
 
@@ -895,8 +877,6 @@ void YM2608::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
 {
 	UpdateSSG(ClockCycles, OutBuffer);
 	UpdateOPN(ClockCycles, OutBuffer);
-	UpdateADPCMA(ClockCycles, OutBuffer);
-	UpdateADPCMB(ClockCycles, OutBuffer);
 }
 
 void YM2608::CopyToMemory(size_t Offset, uint8_t* Data, size_t Size)
@@ -991,7 +971,7 @@ void YM2608::UpdateSSG(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuff
 		}
 
 		/* 16-bit output */
-		OutBuffer[AudioOut::OutputSSG]->WriteSampleS16(Out >> 1);
+		OutBuffer[AudioOut::SSG]->WriteSampleS16(Out >> 1);
 	}
 }
 
@@ -1004,7 +984,7 @@ void YM2608::UpdateOPN(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuff
 		 0 + S2,  4 + S2,  8 + S2,  12 + S2, 16 + S2, 20 + S2, /* Channel 1 - 6: Slot 2 */
 		 0 + S4,  4 + S4,  8 + S4,  12 + S4, 16 + S4, 20 + S4  /* Channel 1 - 6: Slot 4 */
 	};
-	
+
 	uint32_t TotalCycles = ClockCycles + m_CyclesToDoOPN;
 	uint32_t Samples = TotalCycles / (24 * m_PreScalerOPN);
 	m_CyclesToDoOPN = TotalCycles % (24 * m_PreScalerOPN);
@@ -1012,7 +992,7 @@ void YM2608::UpdateOPN(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuff
 	int32_t OutL;
 	int32_t OutR;
 
-	while (Samples != 0)
+	while (Samples-- != 0)
 	{
 		OutL = 0;
 		OutR = 0;
@@ -1039,7 +1019,7 @@ void YM2608::UpdateOPN(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuff
 		UpdateAccumulator(CH1);
 		UpdateAccumulator(CH2);
 		UpdateAccumulator(CH3);
-		
+
 		OutL += (m_OPN.Channel[CH1].Output & m_OPN.Channel[CH1].MaskL);
 		OutR += (m_OPN.Channel[CH1].Output & m_OPN.Channel[CH1].MaskR);
 		OutL += (m_OPN.Channel[CH2].Output & m_OPN.Channel[CH2].MaskL);
@@ -1047,7 +1027,7 @@ void YM2608::UpdateOPN(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuff
 		OutL += (m_OPN.Channel[CH3].Output & m_OPN.Channel[CH3].MaskL);
 		OutR += (m_OPN.Channel[CH3].Output & m_OPN.Channel[CH3].MaskR);
 
-		if (m_OPN.ModeSCH)
+		if (m_OPN.ModeSCH) /* 6-channel mode enabled */
 		{
 			UpdateAccumulator(CH4);
 			UpdateAccumulator(CH5);
@@ -1065,162 +1045,155 @@ void YM2608::UpdateOPN(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuff
 			OutR = std::clamp(OutR, -32768, 32767);
 		}
 
-		/* 16-bit DAC output (interleaved) */
-		OutBuffer[AudioOut::OutputOPN]->WriteSampleS16(OutL);
-		OutBuffer[AudioOut::OutputOPN]->WriteSampleS16(OutR);
+		/* Update ADPCM-A clock */
+		m_ClockADPCMA -= (m_PreScalerOPN * 24);
+		if (m_ClockADPCMA <= 0)
+		{
+			m_ClockADPCMA += (6 * 24 * 3);
+			UpdateADPCMA();
+		}
 
-		Samples--;
+		/* Update ADPCM-B clock */
+		m_ClockADPCMB -= (m_PreScalerOPN * 24);
+		if (m_ClockADPCMB <= 0)
+		{
+			m_ClockADPCMB += (6 * 24);
+			UpdateADPCMB();
+		}
+
+		/* Mix FM, ADPCM-A and ADPCM-B */
+		OutL += m_ADPCM_B.OutL + m_ADPCM_A.OutL;
+		OutR += m_ADPCM_B.OutR + m_ADPCM_A.OutR;
+
+		/* 16-bit output */
+		OutBuffer[AudioOut::OPN]->WriteSampleS16(OutL >> 1);
+		OutBuffer[AudioOut::OPN]->WriteSampleS16(OutR >> 1);
 	}
 }
 
-void YM2608::UpdateADPCMA(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
-{
-	uint32_t TotalCycles = ClockCycles + m_CyclesToDoADPCMA;
-	uint32_t Samples = TotalCycles / (72 * 6);
-	m_CyclesToDoADPCMA = TotalCycles % (72 * 6);
-
-	int16_t OutL;
-	int16_t OutR;
-	
-	while (Samples-- != 0)
-	{		
-		OutL = 0;
-		OutR = 0;
-
-		for (uint32_t i = 0; i < m_RhythmChannels; i++)
-		{
-			auto& Channel = m_ADPCM_A.Channel[i];
-
-			if (Channel.KeyOn)
-			{
-				/* Check for end address */
-				if (Channel.Addr > Channel.End.u32)
-				{
-					Channel.KeyOn = 0;
-					Channel.OutL = 0;
-					Channel.OutR = 0;
-					continue;
-				}
-				
-				/* Read nibble from instrument ROM */
-				uint8_t Nibble = (YM::RSS::InstrumentROM[Channel.Addr] >> Channel.NibbleShift) & 0x0F;
-
-				/* Alternate between 1st and 2nd nibble */
-				Channel.NibbleShift ^= 4;
-
-				/* Increase nibble counter */
-				Channel.Addr += (Channel.NibbleShift >> 2);
-
-				/* Decode ADPCM-A nibble */
-				YM::ADPCMA::Decode(Nibble, &Channel.Step, &Channel.Signal);
-
-				/* Attenuation (3.3 to 3.8 fixed point??) */
-				uint32_t Attn = std::min(m_ADPCM_A.TotalLevel + Channel.Level, 63u) << 5;
-
-				/* dB to linear conversion (13-bit) */
-				uint32_t Volume = YM::ExpTable[Attn & 0xFF] >> (Attn >> 8);
-
-				/* Multiply and shift ADPCM-A signal */
-				int16_t Sample = (Volume * Channel.Signal) >> 9;
-
-				Channel.OutL = Sample & Channel.MaskL;
-				Channel.OutR = Sample & Channel.MaskL;
-			}
-		}
-
-		/* Accumulate samples from all channels */
-		for (auto& Channel : m_ADPCM_A.Channel)
-		{
-			OutL += Channel.OutL;
-			OutR += Channel.OutR;
-		}
-
-		/* Alternate between 4 and 6 channels */
-		m_RhythmChannels ^= 0x02;
-		
-		OutBuffer[AudioOut::OutputADPCMA]->WriteSampleS16(OutL);
-		OutBuffer[AudioOut::OutputADPCMA]->WriteSampleS16(OutR);
-	}
-}
-
-void YM2608::UpdateADPCMB(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
-{
-	uint32_t TotalCycles = ClockCycles + m_CyclesToDoADPCMB;
-	uint32_t Samples = TotalCycles / (24 * 6);
-	m_CyclesToDoADPCMB = TotalCycles % (24 * 6);
-
-	int16_t OutL = 0;
-	int16_t OutR = 0;
-
-	while (Samples-- != 0)
+void YM2608::UpdateADPCMA()
+{	
+	/* Update 4 or 6 channels */
+	for (uint32_t i = 0; i < m_RhythmChannels; i++)
 	{
-		if (m_OPN.Status & FLAG_PCMBUSY)
+		auto& Channel = m_ADPCM_A.Channel[i];
+
+		if (Channel.KeyOn)
 		{
-			/* Add frequency delta (range: 2362 - 65536) */
-			m_ADPCM_B.AddrDelta.u32 += m_ADPCM_B.DeltaN.u32; /* + 1 to have a true 55.5KHz output ??*/
-
-			if (m_ADPCM_B.AddrDelta.u16h) /* Moved to a new nibble address (counter overflow) */
+			/* Check for end address */
+			if (Channel.Addr > Channel.End.u32)
 			{
-				m_ADPCM_B.AddrDelta.u16h = 0;
+				Channel.KeyOn = 0;
+				Channel.OutL = 0;
+				Channel.OutR = 0;
+				continue;
+			}
+				
+			/* Read nibble from instrument ROM */
+			uint8_t Nibble = (YM::RSS::InstrumentROM[Channel.Addr] >> Channel.NibbleShift) & 0x0F;
 
-				if ((m_ADPCM_B.AddrCount >> m_ADPCM_B.AddrShift) == (m_ADPCM_B.Stop.u32 + 1))
+			/* Alternate between 1st and 2nd nibble */
+			Channel.NibbleShift ^= 4;
+
+			/* Increase nibble counter */
+			Channel.Addr += (Channel.NibbleShift >> 2);
+
+			/* Decode ADPCM-A nibble */
+			YM::ADPCMA::Decode(Nibble, &Channel.Step, &Channel.Signal);
+
+			/* Attenuation (3.3 to 3.8 fixed point??) */
+			uint32_t Attn = std::min(m_ADPCM_A.TotalLevel + Channel.Level, 63u) << 5;
+
+			/* dB to linear conversion (13-bit) */
+			uint32_t Volume = YM::ExpTable[Attn & 0xFF] >> (Attn >> 8);
+
+			/* Multiply and shift ADPCM-A signal */
+			int16_t Sample = (Volume * Channel.Signal) >> 9;
+
+			Channel.OutL = Sample & Channel.MaskL;
+			Channel.OutR = Sample & Channel.MaskL;
+		}
+	}
+
+	/* Alternate between 4 and 6 channels */
+	m_RhythmChannels ^= 0x02;
+
+	/* Accumulate samples from all channels */
+	m_ADPCM_A.OutL = 0;
+	m_ADPCM_A.OutR = 0;
+
+	for (auto& Channel : m_ADPCM_A.Channel)
+	{
+		m_ADPCM_A.OutL += Channel.OutL;
+		m_ADPCM_A.OutR += Channel.OutR;
+	}
+}
+
+void YM2608::UpdateADPCMB()
+{
+	if (m_OPN.Status & FLAG_PCMBUSY)
+	{
+		/* Add frequency delta (range: 2362 - 65536) */
+		m_ADPCM_B.AddrDelta.u32 += m_ADPCM_B.DeltaN.u32; /* + 1 to have a true 55.5KHz output ??*/
+
+		if (m_ADPCM_B.AddrDelta.u16h) /* Moved to a new nibble address (counter overflow) */
+		{
+			m_ADPCM_B.AddrDelta.u16h = 0;
+
+			if ((m_ADPCM_B.AddrCount >> m_ADPCM_B.AddrShift) == (m_ADPCM_B.Stop.u32 + 1))
+			{
+				if (m_ADPCM_B.Ctrl1 & CTRL1_REPEAT) /* Loop */
 				{
-					if (m_ADPCM_B.Ctrl1 & CTRL1_REPEAT) /* Loop */
-					{
-						m_ADPCM_B.AddrCount = m_ADPCM_B.Start.u32 << m_ADPCM_B.AddrShift;
-						m_ADPCM_B.AddrDelta = 0;
+					m_ADPCM_B.AddrCount = m_ADPCM_B.Start.u32 << m_ADPCM_B.AddrShift;
+					m_ADPCM_B.AddrDelta = 0;
 
-						m_ADPCM_B.Signal = 0;
-						m_ADPCM_B.SignalPrev = 0;
-						m_ADPCM_B.Step = 127;
-						m_ADPCM_B.NibbleShift = 4;
-					}
-					else /* Don't loop */
-					{
-						m_OPN.Status &= ~FLAG_PCMBUSY;
-						m_OPN.Status |= FLAG_EOS;
-
-						OutL = 0;
-						OutR = 0;
-						continue;
-					}
+					m_ADPCM_B.SignalT1 = 0;
+					m_ADPCM_B.SignalT0 = 0;
+					m_ADPCM_B.Step = 127;
+					m_ADPCM_B.NibbleShift = 4;
 				}
+				else /* Don't loop */
+				{
+					m_OPN.Status &= ~FLAG_PCMBUSY;
+					m_OPN.Status |= FLAG_EOS;
 
-				/* Read nibble from external memory */
-				uint8_t Nibble = (m_MemoryADPCMB[m_ADPCM_B.AddrCount] >> m_ADPCM_B.NibbleShift) & 0x0F;
-
-				/* Alternate between 1st and 2nd nibble */
-				m_ADPCM_B.NibbleShift ^= 4;
-
-				/* Update address counter */
-				m_ADPCM_B.AddrCount += (m_ADPCM_B.NibbleShift >> 2);
-
-				/* Limit address counter */
-				if ((m_ADPCM_B.AddrCount >> m_ADPCM_B.AddrShift) == (m_ADPCM_B.Limit.u32 + 1))
-					m_ADPCM_B.AddrCount = 0;
-
-				/* Save previous sample */
-				m_ADPCM_B.SignalPrev = m_ADPCM_B.Signal;
-
-				/* Decode ADPCM-B nibble */
-				YM::ADPCMB::Decode(Nibble, &m_ADPCM_B.Step, &m_ADPCM_B.Signal);
+					m_ADPCM_B.OutL = 0;
+					m_ADPCM_B.OutR = 0;
+					return;
+				}
 			}
 
-			/* Linear interpolation */
-			uint16_t T0 = 0x10000 - m_ADPCM_B.AddrDelta.u16l;
-			uint16_t T1 = m_ADPCM_B.AddrDelta.u16l;
-			int16_t Sample = ((T0 * m_ADPCM_B.SignalPrev) + (T1 * m_ADPCM_B.Signal)) >> 16;
+			/* Read nibble from external memory */
+			uint8_t Nibble = (m_MemoryADPCMB[m_ADPCM_B.AddrCount] >> m_ADPCM_B.NibbleShift) & 0x0F;
 
-			/* Level control (256-steps) */
-			Sample = (Sample * m_ADPCM_B.LevelCtrl) >> 8;
+			/* Alternate between 1st and 2nd nibble */
+			m_ADPCM_B.NibbleShift ^= 4;
 
-			OutL = Sample & m_ADPCM_B.MaskL;
-			OutR = Sample & m_ADPCM_B.MaskR;
+			/* Update address counter */
+			m_ADPCM_B.AddrCount += (m_ADPCM_B.NibbleShift >> 2);
+
+			/* Limit address counter */
+			if ((m_ADPCM_B.AddrCount >> m_ADPCM_B.AddrShift) == (m_ADPCM_B.Limit.u32 + 1))
+				m_ADPCM_B.AddrCount = 0;
+
+			/* Save previous sample */
+			m_ADPCM_B.SignalT0 = m_ADPCM_B.SignalT1;
+
+			/* Decode ADPCM-B nibble */
+			YM::ADPCMB::Decode(Nibble, &m_ADPCM_B.Step, &m_ADPCM_B.SignalT1);
 		}
 
-		/* Output sample to buffer */
-		OutBuffer[AudioOut::OutputADPCMB]->WriteSampleS16(OutL);
-		OutBuffer[AudioOut::OutputADPCMB]->WriteSampleS16(OutR);
+		/* Linear interpolation */
+		uint16_t T0 = 0x10000 - m_ADPCM_B.AddrDelta.u16l;
+		uint16_t T1 = m_ADPCM_B.AddrDelta.u16l;
+		int16_t Sample = ((T0 * m_ADPCM_B.SignalT0) + (T1 * m_ADPCM_B.SignalT1)) >> 16;
+
+		/* Level control (256-steps) */
+		Sample = (Sample * m_ADPCM_B.LevelCtrl) >> 8;
+
+		/* Final output */
+		m_ADPCM_B.OutL = Sample & m_ADPCM_B.MaskL;
+		m_ADPCM_B.OutR = Sample & m_ADPCM_B.MaskR;
 	}
 }
 
