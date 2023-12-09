@@ -30,7 +30,7 @@ namespace AY /* AY8910 family / clones */
 		uint32_t	AmpCtrl;		/* Amplitude control mode (1-bit) */
 	};
 
-	/* Data type for noise generator */
+	/* Noise generator data type */
 	struct noise_t
 	{
 		uint32_t	Counter;		/* Noise counter (12-bit) */
@@ -40,7 +40,7 @@ namespace AY /* AY8910 family / clones */
 		uint32_t	LFSR;			/* Shift register (17-bit) */
 	};
 
-	/* Data type for envelope generator */
+	/* Envelope generator data type */
 	struct envelope_t
 	{
 		uint32_t	Counter;		/* Envelope counter (16-bit) */
@@ -52,6 +52,15 @@ namespace AY /* AY8910 family / clones */
 		uint32_t	Hld;			/* Envelope hold bit */
 		uint32_t	Alt;			/* Envelope alternate bit */
 		uint32_t	Inv;			/* Envelope output inversion */
+	};
+
+	/* SSG data type (OPN chips) */
+	struct ssg_t
+	{
+		tone_t		Tone[3];
+		noise_t		Noise;
+		envelope_t	Envelope;
+		uint8_t		Register[16];
 	};
 
 	/* Mask table for unused / undefined register bits (AY only) */
@@ -117,7 +126,7 @@ namespace AY /* AY8910 family / clones */
 	};
 
 
-/* Test code to validate the envelope generator output for all posible shapes
+/* Test code to validate the envelope generator output for all possible shapes
 #include <cstdio>
 #include <cstdint>
 

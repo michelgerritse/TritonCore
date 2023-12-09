@@ -58,8 +58,8 @@ See LICENSE.txt in the root directory of this source tree.
 #define DEVICEID		0x01
 
 /* Status / Control / IRQ register bits */
-#define FLAG_TIMER_A	0x01	/* Timer A overflow			*/
-#define FLAG_TIMER_B	0x02	/* Timer B overflow			*/
+#define FLAG_TIMERA		0x01	/* Timer A overflow			*/
+#define FLAG_TIMERB		0x02	/* Timer B overflow			*/
 #define FLAG_EOS		0x04	/* ADPCM-B end of sample	*/
 #define FLAG_BRDY		0x08	/* ADPCM-B bus ready		*/
 #define FLAG_ZERO		0x10	/* ADPCM-B zero signal		*/
@@ -101,6 +101,9 @@ enum ChannelName
 	CH1 = 0, CH2, CH3, CH4, CH5, CH6
 };
 
+/* Name to Slot ID */
+#define O(c, s) { (c << 2) + s}
+
 /* Envelope phases */
 enum ADSR : uint32_t
 {
@@ -121,8 +124,8 @@ YM2608::YM2608(uint32_t ClockSpeed) :
 	/* Initialize instrument data only once */
 	for (auto i = 0; i < 6; i++)
 	{
-		m_ADPCM_A.Channel[i].Start	= YM::RSS::InstrumentOffsets[(i * 2) + 0];
-		m_ADPCM_A.Channel[i].End	= YM::RSS::InstrumentOffsets[(i * 2) + 1];
+		m_ADPCMA.Channel[i].Start	= YM::RSS::InstrumentOffsets[(i * 2) + 0];
+		m_ADPCMA.Channel[i].End	= YM::RSS::InstrumentOffsets[(i * 2) + 1];
 	}
 
 	Reset(ResetType::PowerOnDefaults);
@@ -148,36 +151,29 @@ void YM2608::Reset(ResetType Type)
 	/* Reset latches */
 	m_AddressLatch = 0;
 
-	/* Clear SSG register array (initial state is 0 for all registers) */
-	m_Register.fill(0);
+	/* Reset SSG unit */
+	memset(&m_SSG, 0, sizeof(m_SSG));
 
-	/* Reset SSG tone generators */
-	for (auto& Tone : m_Tone)
-	{
-		memset(&Tone, 0, sizeof(AY::tone_t));
-	}
+	/* Default SSG noise state */
+	m_SSG.Noise.LFSR = 1 << (17 - 1);
 
-	/* Reset SSG noise generator */
-	memset(&m_Noise, 0, sizeof(AY::noise_t));
-	m_Noise.LFSR = 1 << (17 - 1);
-
-	/* Reset SSG envelope generator */
-	m_Envelope.Counter = 0;
-	m_Envelope.Period.u32 = 0;
-	m_Envelope.Amplitude = AY::Amplitude32[31];
-	m_Envelope.Step = 31;
-	m_Envelope.StepDec = 1;
-	m_Envelope.Hld = 1;
-	m_Envelope.Alt = 31;
-	m_Envelope.Inv = 0;
+	/* Default SSG envelope state */
+	m_SSG.Envelope.Counter = 0;
+	m_SSG.Envelope.Period.u32 = 0;
+	m_SSG.Envelope.Amplitude = AY::Amplitude32[31];
+	m_SSG.Envelope.Step = 31;
+	m_SSG.Envelope.StepDec = 1;
+	m_SSG.Envelope.Hld = 1;
+	m_SSG.Envelope.Alt = 31;
+	m_SSG.Envelope.Inv = 0;
 
 	/* Reset OPN unit */
-	memset(&m_OPN, 0, sizeof(YM::OPN::opna_t));
+	memset(&m_OPN, 0, sizeof(m_OPN));
 
 	/* Default general register state */
 	m_OPN.Status	= 0;
 	m_OPN.FlagCtrl	= FLAG_ZERO | FLAG_BRDY | FLAG_EOS;
-	m_OPN.IrqEnable	= FLAG_ZERO | FLAG_BRDY | FLAG_EOS | FLAG_TIMER_B | FLAG_TIMER_A;
+	m_OPN.IrqEnable	= FLAG_ZERO | FLAG_BRDY | FLAG_EOS | FLAG_TIMERB | FLAG_TIMERA;
 	m_OPN.LFO.Period = YM::OPN::LfoPeriod[0];
 
 	/* Default operator register state */
@@ -197,10 +193,10 @@ void YM2608::Reset(ResetType Type)
 	}
 
 	/* Reset RSS unit */
-	m_ADPCM_A.TotalLevel = 0x3F;
+	m_ADPCMA.TotalLevel = 0x3F;
 	m_RhythmChannels = 6;
 
-	for (auto& Channel : m_ADPCM_A.Channel)
+	for (auto& Channel : m_ADPCMA.Channel)
 	{
 		Channel.KeyOn = 0;
 		Channel.OutL = 0;
@@ -211,9 +207,9 @@ void YM2608::Reset(ResetType Type)
 	}
 
 	/* Reset ADPCM-B unit */
-	memset(&m_ADPCM_B, 0, sizeof(YM::adpcmb_t));
-	m_ADPCM_B.AddrShift = 2;
-	m_ADPCM_B.Limit.u32 = 0xFFFF;
+	memset(&m_ADPCMB, 0, sizeof(m_ADPCMB));
+	m_ADPCMB.AddrShift = 2;
+	m_ADPCMB.Limit.u32 = 0xFFFF;
 
 	/* Reset ADPCM-B memory */
 	if (Type == ResetType::PowerOnDefaults)
@@ -224,6 +220,16 @@ void YM2608::Reset(ResetType Type)
 
 void YM2608::SendExclusiveCommand(uint32_t Command, uint32_t Value)
 {
+	if (Command & 0x100) /* Port 1 */
+	{
+		Write(0x02, Command & 0xFF);
+		Write(0x03, Value);
+	}
+	else /* Port 0 */
+	{
+		Write(0x00, Command & 0xFF);
+		Write(0x01, Value);
+	}
 }
 
 bool YM2608::EnumAudioOutputs(uint32_t OutputNr, AUDIO_OUTPUT_DESC& Desc)
@@ -271,16 +277,16 @@ uint32_t YM2608::Read(int32_t Address)
 	switch (Address)
 	{
 	case 0x00: /* Read status 0 */
-		return m_OPN.Status & (FLAG_BUSY | FLAG_TIMER_B | FLAG_TIMER_A); /* For compatibility with OPN (YM2203) */
+		return m_OPN.Status & (FLAG_BUSY | FLAG_TIMERB | FLAG_TIMERA); /* For compatibility with OPN (YM2203) */
 
 	case 0x01: /* Read SSG registers / Device ID */
 		if (m_AddressLatch < 0x10)
 		{
-			return m_Register[m_AddressLatch];
+			return m_SSG.Register[m_AddressLatch];
 		}
 		else if (m_AddressLatch == 0xFF)
 		{
-			return DEVICEID; 
+			return DEVICEID;
 		}
 
 		return 0;
@@ -292,7 +298,7 @@ uint32_t YM2608::Read(int32_t Address)
 		/* Not implemented yet */
 		return 0;
 	}
-	
+
 	return 0;
 }
 
@@ -306,12 +312,12 @@ void YM2608::Write(uint32_t Address, uint32_t Data)
 
 	switch (Address)
 	{
-	case 0x00: /* Part 0 addressing mode */
-	case 0x02: /* Part 1 addressing mode */
+	case 0x00: /* Port 0 addressing mode */
+	case 0x02: /* Port 1 addressing mode */
 		m_AddressLatch = Data;
 		break;
 
-	case 0x01: /* Part 0 data write mode */
+	case 0x01: /* Port 0 data write mode */
 		switch (m_AddressLatch & 0xF0)
 		{
 		case 0x00: /* Write SSG data (0x00 - 0x0F) */
@@ -332,18 +338,12 @@ void YM2608::Write(uint32_t Address, uint32_t Data)
 		}
 		break;
 
-	case 0x03:/* Part 1 data write mode */
+	case 0x03:/* Port 1 data write mode */
 		switch (m_AddressLatch & 0xF0)
 		{
 		case 0x00: /* Write ADPCM-B data (0x00 - 0x0F) */
-			WriteADPCMB(m_AddressLatch, Data);
-			break;
-
 		case 0x10: /* Flag Control / Unused (0x10 - 0x1F) */
-			if (Address == 0x10)
-			{
-				m_OPN.FlagCtrl = Data;
-			}
+			WriteADPCMB(m_AddressLatch, Data);
 			break;
 
 		case 0x20: /* Unused (0x20 - 0x2F) */
@@ -360,98 +360,98 @@ void YM2608::Write(uint32_t Address, uint32_t Data)
 void YM2608::WriteSSG(uint8_t Address, uint8_t Data)
 {
 	Address &= 0x0F;
-	m_Register[Address] = Data;
+	m_SSG.Register[Address] = Data;
 
 	Data &= AY::Mask[Address]; /* Mask unused bits after storing */
 
 	switch (Address)
 	{
 	case 0x00: /* Channel A Tone Period (Fine Tune) */
-		m_Tone[0].Period.u8ll = Data;
+		m_SSG.Tone[0].Period.u8ll = Data;
 		break;
 
 	case 0x01: /* Channel A Tone Period (Coarse Tune) */
-		m_Tone[0].Period.u8lh = Data;
+		m_SSG.Tone[0].Period.u8lh = Data;
 		break;
 
 	case 0x02: /* Channel B Tone Period (Fine Tune) */
-		m_Tone[1].Period.u8ll = Data;
+		m_SSG.Tone[1].Period.u8ll = Data;
 		break;
 
 	case 0x03: /* Channel B Tone Period (Coarse Tune) */
-		m_Tone[1].Period.u8lh = Data;
+		m_SSG.Tone[1].Period.u8lh = Data;
 		break;
 
 	case 0x04: /* Channel C Tone Period (Fine Tune) */
-		m_Tone[2].Period.u8ll = Data;
+		m_SSG.Tone[2].Period.u8ll = Data;
 		break;
 
 	case 0x05: /* Channel C Tone Period (Coarse Tune) */
-		m_Tone[2].Period.u8lh = Data;
+		m_SSG.Tone[2].Period.u8lh = Data;
 		break;
 
 	case 0x06: /* Noise Period */
-		m_Noise.Period = Data;
+		m_SSG.Noise.Period = Data;
 		break;
 
 	case 0x07: /* Mixer Control - I/O Enable */
-		m_Tone[0].ToneDisable = (Data >> 0) & 1;
-		m_Tone[1].ToneDisable = (Data >> 1) & 1;
-		m_Tone[2].ToneDisable = (Data >> 2) & 1;
+		m_SSG.Tone[0].ToneDisable = (Data >> 0) & 1;
+		m_SSG.Tone[1].ToneDisable = (Data >> 1) & 1;
+		m_SSG.Tone[2].ToneDisable = (Data >> 2) & 1;
 
-		m_Tone[0].NoiseDisable = (Data >> 3) & 1;
-		m_Tone[1].NoiseDisable = (Data >> 4) & 1;
-		m_Tone[2].NoiseDisable = (Data >> 5) & 1;
+		m_SSG.Tone[0].NoiseDisable = (Data >> 3) & 1;
+		m_SSG.Tone[1].NoiseDisable = (Data >> 4) & 1;
+		m_SSG.Tone[2].NoiseDisable = (Data >> 5) & 1;
 		break;
 
 	case 0x08: /* Channel A Amplitude Control */
-		m_Tone[0].Amplitude = AY::Amplitude32[AY::MapLvl4to5[Data & 0x0F]];
-		m_Tone[0].AmpCtrl = (Data & 0x10) >> 4;
+		m_SSG.Tone[0].Amplitude = AY::Amplitude32[AY::MapLvl4to5[Data & 0x0F]];
+		m_SSG.Tone[0].AmpCtrl = (Data & 0x10) >> 4;
 		break;
 
 	case 0x09: /* Channel B Amplitude Control */
-		m_Tone[1].Amplitude = AY::Amplitude32[AY::MapLvl4to5[Data & 0x0F]];
-		m_Tone[1].AmpCtrl = (Data & 0x10) >> 4;
+		m_SSG.Tone[1].Amplitude = AY::Amplitude32[AY::MapLvl4to5[Data & 0x0F]];
+		m_SSG.Tone[1].AmpCtrl = (Data & 0x10) >> 4;
 		break;
 
 	case 0x0A: /* Channel C Amplitude Control */
-		m_Tone[2].Amplitude = AY::Amplitude32[AY::MapLvl4to5[Data & 0x0F]];
-		m_Tone[2].AmpCtrl = (Data & 0x10) >> 4;
+		m_SSG.Tone[2].Amplitude = AY::Amplitude32[AY::MapLvl4to5[Data & 0x0F]];
+		m_SSG.Tone[2].AmpCtrl = (Data & 0x10) >> 4;
 		break;
 
 	case 0x0B: /* Envelope Period (Fine Tune) */
-		m_Envelope.Period.u8ll = Data;
+		m_SSG.Envelope.Period.u8ll = Data;
 		break;
 
 	case 0x0C: /* Envelope Period (Coarse Tune) */
-		m_Envelope.Period.u8lh = Data;
+		m_SSG.Envelope.Period.u8lh = Data;
 		break;
 
 	case 0x0D: /* Envelope Shape / Cycle Control */
-		m_Envelope.Counter = 0;
-		m_Envelope.Step = 31;
-		m_Envelope.StepDec = 1;
+		m_SSG.Envelope.Counter = 0;
+		m_SSG.Envelope.Step = 31;
+		m_SSG.Envelope.StepDec = 1;
 
 		/* If attacking, apply output inversion */
-		m_Envelope.Inv = (Data & 0x04) ? 31 : 0;
+		m_SSG.Envelope.Inv = (Data & 0x04) ? 31 : 0;
 
 		if (Data & 0x08) /* Continuous cycles */
 		{
-			m_Envelope.Hld = Data & 0x01;
+			m_SSG.Envelope.Hld = Data & 0x01;
 
-			if (m_Envelope.Hld)
-				m_Envelope.Alt = (Data & 0x02) ? 0 : 31;
+			if (m_SSG.Envelope.Hld)
+				m_SSG.Envelope.Alt = (Data & 0x02) ? 0 : 31;
 			else
-				m_Envelope.Alt = (Data & 0x02) ? 31 : 0;
+				m_SSG.Envelope.Alt = (Data & 0x02) ? 31 : 0;
 		}
 		else /* Single cycle */
 		{
-			m_Envelope.Hld = 1;
-			m_Envelope.Alt = m_Envelope.Inv ^ 31;
+			m_SSG.Envelope.Hld = 1;
+			m_SSG.Envelope.Alt = m_SSG.Envelope.Inv ^ 31;
 		}
 
 		/* Set initial ouput volume */
-		m_Envelope.Amplitude = AY::Amplitude32[m_Envelope.Step ^ m_Envelope.Inv];
+		m_SSG.Envelope.Amplitude = AY::Amplitude32[m_SSG.Envelope.Step ^ m_SSG.Envelope.Inv];
 		break;
 
 	case 0x0E: /* I/O Port A Data Store */
@@ -480,7 +480,7 @@ void YM2608::WriteRSS(uint8_t Address, uint8_t Data)
 		{
 			if ((Data >> i) & 0x01)
 			{
-				auto& Channel = m_ADPCM_A.Channel[i];
+				auto& Channel = m_ADPCMA.Channel[i];
 				
 				if (DM) /* Key On */
 				{
@@ -501,7 +501,7 @@ void YM2608::WriteRSS(uint8_t Address, uint8_t Data)
 
 	case 0x01: /* Rhythm Total Level */
 		/* -47.5dB - 0dB (64 steps, 0.75dB resolution) */
-		m_ADPCM_A.TotalLevel = ~Data & 0x3F;
+		m_ADPCMA.TotalLevel = ~Data & 0x3F;
 		break;
 
 	case 0x02: /* LSI Test */
@@ -516,9 +516,9 @@ void YM2608::WriteRSS(uint8_t Address, uint8_t Data)
 	case 0x0D: /* Output selection / Instrument level (RIM) */
 	{
 		auto Instr = Address & 0x07;
-		if (Instr >= 6) break; /* Keeps the compiler happy: warnings about m_ADPCM_A.Channel[Address & 0x07] */
+		if (Instr >= 6) break; /* Keeps the compiler happy: warnings about m_ADPCMA.Channel[Address & 0x07] */
 
-		auto& Channel = m_ADPCM_A.Channel[Instr];
+		auto& Channel = m_ADPCMA.Channel[Instr];
 		
 		/* Output selection is implemented as a mask */
 		Channel.MaskL = (Data & 0x80) ? ~0 : 0;
@@ -536,95 +536,109 @@ void YM2608::WriteRSS(uint8_t Address, uint8_t Data)
 
 void YM2608::WriteADPCMB(uint8_t Address, uint8_t Data)
 {
-	switch (Address & 0x0F)
+	switch (Address & 0x1F)
 	{
 	case 0x00: /* Control register 1 */
-		m_ADPCM_B.Ctrl1 = Data;
+		m_ADPCMB.Ctrl1 = Data;
 
-		if (m_ADPCM_B.Ctrl1 & CTRL1_RESET)
+		if (m_ADPCMB.Ctrl1 & CTRL1_RESET)
 		{
-			m_OPN.Status &= ~(FLAG_PCMBUSY | FLAG_ZERO | FLAG_EOS);
-			m_OPN.Status |= FLAG_BRDY; /* Mark bus ready */
+			ClearStatusFlags(FLAG_PCMBUSY | FLAG_ZERO | FLAG_EOS);
+			SetStatusFlags(FLAG_BRDY);
 		}
 
 		/* Note: Only ADPCM-B decoding from memory supported */
-		if ((m_ADPCM_B.Ctrl1 & (CTRL1_START | CTRL1_REC | CTRL1_MEMDATA)) == (CTRL1_START | CTRL1_MEMDATA))
+		if ((m_ADPCMB.Ctrl1 & (CTRL1_START | CTRL1_REC | CTRL1_MEMDATA)) == (CTRL1_START | CTRL1_MEMDATA))
 		{
-			m_OPN.Status &= ~(FLAG_ZERO | FLAG_EOS);
-			m_OPN.Status |= FLAG_PCMBUSY; /* Mark device busy */
+			ClearStatusFlags(FLAG_ZERO | FLAG_BRDY | FLAG_EOS);
+			SetStatusFlags(FLAG_PCMBUSY);
 			
-			m_ADPCM_B.AddrCount = m_ADPCM_B.Start.u32 << m_ADPCM_B.AddrShift;
-			m_ADPCM_B.AddrDelta = 0;
+			m_ADPCMB.AddrCount = m_ADPCMB.Start.u32 << m_ADPCMB.AddrShift;
+			m_ADPCMB.AddrDelta = 0;
 
-			m_ADPCM_B.SignalT1 = 0;
-			m_ADPCM_B.SignalT0 = 0;
-			m_ADPCM_B.Step = 127;
-			m_ADPCM_B.NibbleShift = 4;
+			m_ADPCMB.SignalT1 = 0;
+			m_ADPCMB.SignalT0 = 0;
+			m_ADPCMB.Step = 127;
+			m_ADPCMB.NibbleShift = 4;
 		}
 		break;
 
 	case 0x01: /* Control register 2 */
 		if ((Data & (CTRL2_RAMTYPE | CTRL2_ROM)) == 0)
-			m_ADPCM_B.AddrShift = 2; /* DRAM 1-bit access: 4-bytes aligned */
+			m_ADPCMB.AddrShift = 2; /* DRAM 1-bit access: 4-bytes aligned */
 		else
-			m_ADPCM_B.AddrShift = 5; /* ROM/DRAM 8-bit access: 32-bytes aligned */
+			m_ADPCMB.AddrShift = 5; /* ROM/DRAM 8-bit access: 32-bytes aligned */
 
 		/* Output selection is implemented as a mask */
-		m_ADPCM_B.MaskL = (Data & CTRL2_LCH) ? ~0 : 0;
-		m_ADPCM_B.MaskR = (Data & CTRL2_RCH) ? ~0 : 0;
+		m_ADPCMB.MaskL = (Data & CTRL2_LCH) ? ~0 : 0;
+		m_ADPCMB.MaskR = (Data & CTRL2_RCH) ? ~0 : 0;
 		break;
 
 	case 0x02: /* Start address (L) */
-		m_ADPCM_B.Start.u8ll = Data;
+		m_ADPCMB.Start.u8ll = Data;
 		break;
 
 	case 0x03: /* Start address (H) */
-		m_ADPCM_B.Start.u8lh = Data;
+		m_ADPCMB.Start.u8lh = Data;
 		break;
 
 	case 0x04: /* Stop address (L) */
-		m_ADPCM_B.Stop.u8ll = Data;
+		m_ADPCMB.Stop.u8ll = Data;
 		break;
 
 	case 0x05: /* Stop address (H) */
-		m_ADPCM_B.Stop.u8lh = Data;
+		m_ADPCMB.Stop.u8lh = Data;
 		break;
 
 	case 0x06: /* Prescale (L) */
-		m_ADPCM_B.Prescale.u8ll = Data;
+		m_ADPCMB.Prescale.u8ll = Data;
 		break;
 
 	case 0x07: /* Prescale (H) */
-		m_ADPCM_B.Prescale.u8lh = Data & 0x07;
+		m_ADPCMB.Prescale.u8lh = Data & 0x07;
 		break;
 
 	case 0x08: /* ADPCM data */
 		break;
 
 	case 0x09: /* Delta-N (L) */
-		m_ADPCM_B.DeltaN.u8ll = Data;
+		m_ADPCMB.DeltaN.u8ll = Data;
 		break;
 
 	case 0x0A: /* Delta-N (H) */
-		m_ADPCM_B.DeltaN.u8lh = Data;
+		m_ADPCMB.DeltaN.u8lh = Data;
 		break;
 
 	case 0x0B: /* Level control */
-		m_ADPCM_B.LevelCtrl = Data;
+		m_ADPCMB.LevelCtrl = Data;
 		break;
 
 	case 0x0C: /* Limit address (L) */
-		m_ADPCM_B.Limit.u8ll = Data;
+		m_ADPCMB.Limit.u8ll = Data;
 		break;
 
 	case 0x0D: /* Limit address (H) */
-		m_ADPCM_B.Limit.u8lh = Data;
+		m_ADPCMB.Limit.u8lh = Data;
 		break;
 
 	case 0x0E: /* DAC data */
 		break;
 
 	case 0x0F: /* PCM data */
+		break;
+
+	case 0x10: /* Flag control */
+		if (Data & 0x80) /* IRQ Reset */
+		{
+			/* TODO: Clear interrupt line */
+		}
+		else
+		{
+			m_OPN.FlagCtrl = Data & 0x1F;
+		}
+		break;
+
+	default: /* Unused (0x11 - 0x1F) */
 		break;
 	}
 }
@@ -685,8 +699,8 @@ void YM2608::WriteMode(uint8_t Address, uint8_t Data)
 		m_OPN.TimerB.Enable = (Data >> 3) & 0x01;
 
 		/* Timer A/B overflow flag reset */
-		if (Data & 0x10) m_OPN.Status &= ~FLAG_TIMER_A;
-		if (Data & 0x20) m_OPN.Status &= ~FLAG_TIMER_B;
+		if (Data & 0x10) ClearStatusFlags(FLAG_TIMERA);
+		if (Data & 0x20) ClearStatusFlags(FLAG_TIMERB);
 
 		/* 3CH / CSM mode */
 		m_OPN.Mode3CH = ((Data & 0xC0) != 0x00) ? 1 : 0;
@@ -701,10 +715,10 @@ void YM2608::WriteMode(uint8_t Address, uint8_t Data)
 		
 		uint32_t ChannelId = ((Data & 0x03) + ((Data & 0x04) ? 3 : 0)) << 2;
 
-		m_OPN.Slot[ChannelId + S1].KeyLatch = (Data & 0x10) >> 4;
-		m_OPN.Slot[ChannelId + S2].KeyLatch = (Data & 0x20) >> 5;
-		m_OPN.Slot[ChannelId + S3].KeyLatch = (Data & 0x40) >> 6;
-		m_OPN.Slot[ChannelId + S4].KeyLatch = (Data & 0x80) >> 7;
+		m_OPN.Slot[ChannelId + S1].KeyLatch = (Data >> 4) & 0x01;
+		m_OPN.Slot[ChannelId + S2].KeyLatch = (Data >> 5) & 0x01;
+		m_OPN.Slot[ChannelId + S3].KeyLatch = (Data >> 6) & 0x01;
+		m_OPN.Slot[ChannelId + S4].KeyLatch = (Data >> 7) & 0x01;
 
 #ifdef VGM_WORKAROUND
 		/*	Note: This is a work-around as key events should not be procesed here.
@@ -720,8 +734,8 @@ void YM2608::WriteMode(uint8_t Address, uint8_t Data)
 	}
 
 	case 0x29: /* SCH / IRQ Enable */
-		m_OPN.ModeSCH = (Data & 0x80) ? ~0 : 0;
-		m_OPN.IrqEnable = Data & 0x1F;
+		m_OPN.ModeSCH   = (Data >> 7) & 0x01;
+		m_OPN.IrqEnable = (Data >> 0) & 0x1F;
 		break;
 
 	case 0x2A: /* Not used */
@@ -734,21 +748,21 @@ void YM2608::WriteMode(uint8_t Address, uint8_t Data)
 		break;
 
 	case 0x2D: /* Prescaler selection (/6) */
-		//m_PreScalerOPN = 6;
-		//m_PreScalerSSG = 4;
+		m_PreScalerOPN = 6;
+		m_PreScalerSSG = 4;
 		break;
 
 	case 0x2E: /* Prescaler selection (/3) */
-		//if (m_PreScalerOPN == 6)
-		//{
-		//	m_PreScalerOPN = 3;
-		//	m_PreScalerSSG = 2;
-		//}
+		if (m_PreScalerOPN == 6)
+		{
+			m_PreScalerOPN = 3;
+			m_PreScalerSSG = 2;
+		}
 		break;
 
 	case 0x2F: /* Prescaler selection (/2) */
-		//m_PreScalerOPN = 2;
-		//m_PreScalerSSG = 1;
+		m_PreScalerOPN = 2;
+		m_PreScalerSSG = 1;
 		break;
 	}
 }
@@ -758,8 +772,16 @@ void YM2608::WriteFM(uint8_t Address, uint8_t Port, uint8_t Data)
 	/* Slot address mapping: S1 - S3 - S2 - S4 */
 	static const int32_t SlotMap[2][16] =
 	{
-		{  0,  4,  8, -1,  2,  6, 10, -1,  1,  5,  9, -1,  3,  7, 11, -1 },	/* Channel 1-2-3 (port 0) */
-		{ 12, 16, 20, -1, 14, 18, 22, -1, 13, 17, 21, -1, 15, 19, 23, -1 }	/* Channel 4-5-6 (port 1) */
+		{
+			/* Port 0: Channel 1 - 3 */
+			O(CH1,S1), O(CH2,S1), O(CH3,S1), -1, O(CH1,S3), O(CH2,S3), O(CH3,S3), -1,
+			O(CH1,S2), O(CH2,S2), O(CH3,S2), -1, O(CH1,S4), O(CH2,S4), O(CH3,S4), -1
+		},
+		{
+			/* Port 1: Channel 4 - 6 */
+			O(CH4,S1), O(CH5,S1), O(CH6,S1), -1, O(CH4,S3), O(CH5,S3), O(CH6,S3), -1,
+			O(CH4,S2), O(CH5,S2), O(CH6,S2), -1, O(CH4,S4), O(CH5,S4), O(CH6,S4), -1
+		}
 	};
 
 	int32_t SlotId = SlotMap[Port][Address & 0x0F];
@@ -873,6 +895,21 @@ void YM2608::WriteFM(uint8_t Address, uint8_t Port, uint8_t Data)
 	}
 }
 
+void YM2608::SetStatusFlags(uint8_t Flags)
+{
+	m_OPN.Status |= Flags & ~m_OPN.FlagCtrl;
+
+	if (m_OPN.Status & m_OPN.IrqEnable & Flags)
+	{
+		/* TODO: Set interrupt line */
+	}
+}
+
+void YM2608::ClearStatusFlags(uint8_t Flags)
+{
+	m_OPN.Status &= ~Flags;
+}
+
 void YM2608::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
 {
 	UpdateSSG(ClockCycles, OutBuffer);
@@ -906,53 +943,53 @@ void YM2608::UpdateSSG(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuff
 		Out = 0;
 
 		/* Update envelope generator */
-		if ((m_Envelope.Counter += 2) >= m_Envelope.Period.u32) //FIXME: should be += 1
+		if ((m_SSG.Envelope.Counter += 2) >= m_SSG.Envelope.Period.u32) //FIXME: should be += 1
 		{
 			/* Reset counter */
-			m_Envelope.Counter = 0;
+			m_SSG.Envelope.Counter = 0;
 
 			/* Count down step counter (31 -> 0) */
-			m_Envelope.Step -= m_Envelope.StepDec;
+			m_SSG.Envelope.Step -= m_SSG.Envelope.StepDec;
 
-			if (m_Envelope.Step & 32) /* Envelope cycle completed */
+			if (m_SSG.Envelope.Step & 32) /* Envelope cycle completed */
 			{
 				/* Restart cycle */
-				m_Envelope.Step = 31;
+				m_SSG.Envelope.Step = 31;
 
 				/* Stop counting (if needed) */
-				m_Envelope.StepDec = m_Envelope.Hld ^ 1;
+				m_SSG.Envelope.StepDec = m_SSG.Envelope.Hld ^ 1;
 
 				/* Toggle output inversion */
-				m_Envelope.Inv ^= m_Envelope.Alt;
+				m_SSG.Envelope.Inv ^= m_SSG.Envelope.Alt;
 			}
 
 			/* Apply output inversion and lookup amplitude */
-			m_Envelope.Amplitude = AY::Amplitude32[m_Envelope.Step ^ m_Envelope.Inv];
+			m_SSG.Envelope.Amplitude = AY::Amplitude32[m_SSG.Envelope.Step ^ m_SSG.Envelope.Inv];
 		}
 
 		/* Update noise generator */
-		if (m_Noise.Prescaler ^= 1)
+		if (m_SSG.Noise.Prescaler ^= 1)
 		{
-			if ((m_Noise.Counter += 2) >= m_Noise.Period) //FIXME: should be += 1
+			if ((m_SSG.Noise.Counter += 2) >= m_SSG.Noise.Period) //FIXME: should be += 1
 			{
 				/* Reset counter */
-				m_Noise.Counter = 0;
+				m_SSG.Noise.Counter = 0;
 
 				/* Update output flag */
-				m_Noise.Output = m_Noise.LFSR & 1;
+				m_SSG.Noise.Output = m_SSG.Noise.LFSR & 1;
 
 				/* Tap bits 3 and 0 (XOR feedback) */
-				uint32_t Seed = ((m_Noise.LFSR >> 3) ^ (m_Noise.LFSR >> 0)) & 1;
+				uint32_t Seed = ((m_SSG.Noise.LFSR >> 3) ^ (m_SSG.Noise.LFSR >> 0)) & 1;
 
 				/* Shift LFSR and apply seed (17-bit wide) */
-				m_Noise.LFSR = (m_Noise.LFSR >> 1) | (Seed << 16);
+				m_SSG.Noise.LFSR = (m_SSG.Noise.LFSR >> 1) | (Seed << 16);
 			}
 		}
 
 		/* Update, mix and buffer tone generators */
 		for (auto i = 0; i < 3; i++)
 		{
-			auto& Tone = m_Tone[i];
+			auto& Tone = m_SSG.Tone[i];
 
 			if ((Tone.Counter += 2) >= Tone.Period.u32) //FIXME: should be += 1
 			{
@@ -964,10 +1001,10 @@ void YM2608::UpdateSSG(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuff
 			}
 
 			/* Mix tone and noise (implemented as a mask) */
-			Mask = ~(((Tone.Output | Tone.ToneDisable) & (m_Noise.Output | Tone.NoiseDisable)) - 1);
+			Mask = ~(((Tone.Output | Tone.ToneDisable) & (m_SSG.Noise.Output | Tone.NoiseDisable)) - 1);
 
 			/* Amplitude control */
-			Out += (Tone.AmpCtrl ? m_Envelope.Amplitude : Tone.Amplitude) & Mask;
+			Out += (Tone.AmpCtrl ? m_SSG.Envelope.Amplitude : Tone.Amplitude) & Mask;
 		}
 
 		/* 16-bit output */
@@ -977,12 +1014,12 @@ void YM2608::UpdateSSG(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuff
 
 void YM2608::UpdateOPN(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
 {
-	static const uint32_t SlotOrder[24] =
+	static const uint32_t SlotOrder[] =
 	{
-		 0 + S1,  4 + S1,  8 + S1,  12 + S1, 16 + S1, 20 + S1, /* Channel 1 - 6: Slot 1 */
-		 0 + S3,  4 + S3,  8 + S3,  12 + S3, 16 + S3, 20 + S3, /* Channel 1 - 6: Slot 3 */
-		 0 + S2,  4 + S2,  8 + S2,  12 + S2, 16 + S2, 20 + S2, /* Channel 1 - 6: Slot 2 */
-		 0 + S4,  4 + S4,  8 + S4,  12 + S4, 16 + S4, 20 + S4  /* Channel 1 - 6: Slot 4 */
+		 O(CH1,S1), O(CH2,S1), O(CH3,S1), O(CH4,S1), O(CH5,S1), O(CH6,S1),
+		 O(CH1,S3), O(CH2,S3), O(CH3,S3), O(CH4,S3), O(CH5,S3), O(CH6,S3),
+		 O(CH1,S2), O(CH2,S2), O(CH3,S2), O(CH4,S2), O(CH5,S2), O(CH6,S2),
+		 O(CH1,S4), O(CH2,S4), O(CH3,S4), O(CH4,S4), O(CH5,S4), O(CH6,S4)
 	};
 
 	uint32_t TotalCycles = ClockCycles + m_CyclesToDoOPN;
@@ -1062,8 +1099,8 @@ void YM2608::UpdateOPN(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuff
 		}
 
 		/* Mix FM, ADPCM-A and ADPCM-B */
-		OutL += m_ADPCM_B.OutL + m_ADPCM_A.OutL;
-		OutR += m_ADPCM_B.OutR + m_ADPCM_A.OutR;
+		OutL += m_ADPCMB.OutL + m_ADPCMA.OutL;
+		OutR += m_ADPCMB.OutR + m_ADPCMA.OutR;
 
 		/* 16-bit output */
 		OutBuffer[AudioOut::OPN]->WriteSampleS16(OutL >> 1);
@@ -1076,7 +1113,7 @@ void YM2608::UpdateADPCMA()
 	/* Update 4 or 6 channels */
 	for (uint32_t i = 0; i < m_RhythmChannels; i++)
 	{
-		auto& Channel = m_ADPCM_A.Channel[i];
+		auto& Channel = m_ADPCMA.Channel[i];
 
 		if (Channel.KeyOn)
 		{
@@ -1102,7 +1139,7 @@ void YM2608::UpdateADPCMA()
 			YM::ADPCMA::Decode(Nibble, &Channel.Step, &Channel.Signal);
 
 			/* Attenuation (3.3 to 3.8 fixed point??) */
-			uint32_t Attn = std::min(m_ADPCM_A.TotalLevel + Channel.Level, 63u) << 5;
+			uint32_t Attn = std::min(m_ADPCMA.TotalLevel + Channel.Level, 63u) << 5;
 
 			/* dB to linear conversion (13-bit) */
 			uint32_t Volume = YM::ExpTable[Attn & 0xFF] >> (Attn >> 8);
@@ -1119,13 +1156,13 @@ void YM2608::UpdateADPCMA()
 	m_RhythmChannels ^= 0x02;
 
 	/* Accumulate samples from all channels */
-	m_ADPCM_A.OutL = 0;
-	m_ADPCM_A.OutR = 0;
+	m_ADPCMA.OutL = 0;
+	m_ADPCMA.OutR = 0;
 
-	for (auto& Channel : m_ADPCM_A.Channel)
+	for (auto& Channel : m_ADPCMA.Channel)
 	{
-		m_ADPCM_A.OutL += Channel.OutL;
-		m_ADPCM_A.OutR += Channel.OutR;
+		m_ADPCMA.OutL += Channel.OutL;
+		m_ADPCMA.OutR += Channel.OutR;
 	}
 }
 
@@ -1134,66 +1171,66 @@ void YM2608::UpdateADPCMB()
 	if (m_OPN.Status & FLAG_PCMBUSY)
 	{
 		/* Add frequency delta (range: 2362 - 65536) */
-		m_ADPCM_B.AddrDelta.u32 += m_ADPCM_B.DeltaN.u32; /* + 1 to have a true 55.5KHz output ??*/
+		m_ADPCMB.AddrDelta.u32 += m_ADPCMB.DeltaN.u32; /* + 1 to have a true 55.5KHz output ??*/
 
-		if (m_ADPCM_B.AddrDelta.u16h) /* Moved to a new nibble address (counter overflow) */
+		if (m_ADPCMB.AddrDelta.u16h) /* Moved to a new nibble address (counter overflow) */
 		{
-			m_ADPCM_B.AddrDelta.u16h = 0;
+			m_ADPCMB.AddrDelta.u16h = 0;
 
-			if ((m_ADPCM_B.AddrCount >> m_ADPCM_B.AddrShift) == (m_ADPCM_B.Stop.u32 + 1))
+			if ((m_ADPCMB.AddrCount >> m_ADPCMB.AddrShift) == (m_ADPCMB.Stop.u32 + 1))
 			{
-				if (m_ADPCM_B.Ctrl1 & CTRL1_REPEAT) /* Loop */
+				if (m_ADPCMB.Ctrl1 & CTRL1_REPEAT) /* Loop */
 				{
-					m_ADPCM_B.AddrCount = m_ADPCM_B.Start.u32 << m_ADPCM_B.AddrShift;
-					m_ADPCM_B.AddrDelta = 0;
+					m_ADPCMB.AddrCount = m_ADPCMB.Start.u32 << m_ADPCMB.AddrShift;
+					m_ADPCMB.AddrDelta = 0;
 
-					m_ADPCM_B.SignalT1 = 0;
-					m_ADPCM_B.SignalT0 = 0;
-					m_ADPCM_B.Step = 127;
-					m_ADPCM_B.NibbleShift = 4;
+					m_ADPCMB.SignalT1 = 0;
+					m_ADPCMB.SignalT0 = 0;
+					m_ADPCMB.Step = 127;
+					m_ADPCMB.NibbleShift = 4;
 				}
 				else /* Don't loop */
 				{
-					m_OPN.Status &= ~FLAG_PCMBUSY;
-					m_OPN.Status |= FLAG_EOS;
+					ClearStatusFlags(FLAG_PCMBUSY);
+					SetStatusFlags(FLAG_EOS);
 
-					m_ADPCM_B.OutL = 0;
-					m_ADPCM_B.OutR = 0;
+					m_ADPCMB.OutL = 0;
+					m_ADPCMB.OutR = 0;
 					return;
 				}
 			}
 
 			/* Read nibble from external memory */
-			uint8_t Nibble = (m_MemoryADPCMB[m_ADPCM_B.AddrCount] >> m_ADPCM_B.NibbleShift) & 0x0F;
+			uint8_t Nibble = (m_MemoryADPCMB[m_ADPCMB.AddrCount] >> m_ADPCMB.NibbleShift) & 0x0F;
 
 			/* Alternate between 1st and 2nd nibble */
-			m_ADPCM_B.NibbleShift ^= 4;
+			m_ADPCMB.NibbleShift ^= 4;
 
 			/* Update address counter */
-			m_ADPCM_B.AddrCount += (m_ADPCM_B.NibbleShift >> 2);
+			m_ADPCMB.AddrCount += (m_ADPCMB.NibbleShift >> 2);
 
 			/* Limit address counter */
-			if ((m_ADPCM_B.AddrCount >> m_ADPCM_B.AddrShift) == (m_ADPCM_B.Limit.u32 + 1))
-				m_ADPCM_B.AddrCount = 0;
+			if ((m_ADPCMB.AddrCount >> m_ADPCMB.AddrShift) == (m_ADPCMB.Limit.u32 + 1))
+				m_ADPCMB.AddrCount = 0;
 
 			/* Save previous sample */
-			m_ADPCM_B.SignalT0 = m_ADPCM_B.SignalT1;
+			m_ADPCMB.SignalT0 = m_ADPCMB.SignalT1;
 
 			/* Decode ADPCM-B nibble */
-			YM::ADPCMB::Decode(Nibble, &m_ADPCM_B.Step, &m_ADPCM_B.SignalT1);
+			YM::ADPCMB::Decode(Nibble, &m_ADPCMB.Step, &m_ADPCMB.SignalT1);
 		}
 
 		/* Linear interpolation */
-		uint16_t T0 = 0x10000 - m_ADPCM_B.AddrDelta.u16l;
-		uint16_t T1 = m_ADPCM_B.AddrDelta.u16l;
-		int16_t Sample = ((T0 * m_ADPCM_B.SignalT0) + (T1 * m_ADPCM_B.SignalT1)) >> 16;
+		uint16_t T0 = 0x10000 - m_ADPCMB.AddrDelta.u16l;
+		uint16_t T1 = m_ADPCMB.AddrDelta.u16l;
+		int16_t Sample = ((T0 * m_ADPCMB.SignalT0) + (T1 * m_ADPCMB.SignalT1)) >> 16;
 
 		/* Level control (256-steps) */
-		Sample = (Sample * m_ADPCM_B.LevelCtrl) >> 8;
+		Sample = (Sample * m_ADPCMB.LevelCtrl) >> 8;
 
 		/* Final output */
-		m_ADPCM_B.OutL = Sample & m_ADPCM_B.MaskL;
-		m_ADPCM_B.OutR = Sample & m_ADPCM_B.MaskR;
+		m_ADPCMB.OutL = Sample & m_ADPCMB.MaskL;
+		m_ADPCMB.OutR = Sample & m_ADPCMB.MaskR;
 	}
 }
 
@@ -1232,7 +1269,7 @@ void YM2608::UpdatePhaseGenerator(uint32_t SlotId)
 	/* LFO frequency modulation (12-bit result) */
 	FNum = (FNum + YM::OPN::LfoPmTable[FNum >> 5][m_OPN.LFO.Step >> 2][Chan.PMS]) & 0xFFF;
 
-	/*	Block shift (17-bit result) */
+	/* Block shift (17-bit result) */
 	uint32_t Inc = (FNum << Slot.Block) >> 2;
 
 	/* Detune (17-bit result, might overflow) */
@@ -1607,7 +1644,7 @@ void YM2608::UpdateTimers()
 			m_OPN.TimerA.Counter = 1024 - m_OPN.TimerA.Period;
 
 			/* Overflow flag enabled */
-			if (m_OPN.TimerA.Enable) m_OPN.Status |= FLAG_TIMER_A;
+			if (m_OPN.TimerA.Enable) SetStatusFlags(FLAG_TIMERA);
 
 			/* CSM Key On */
 			if (m_OPN.ModeCSM)
@@ -1628,7 +1665,7 @@ void YM2608::UpdateTimers()
 			m_OPN.TimerB.Counter = (256 - m_OPN.TimerB.Period) << 4;
 
 			/* Overflow flag enabled */
-			if (m_OPN.TimerB.Enable) m_OPN.Status |= FLAG_TIMER_B;
+			if (m_OPN.TimerB.Enable) SetStatusFlags(FLAG_TIMERB);
 		}
 	}
 }

@@ -46,19 +46,16 @@ public:
 private:
 	uint8_t			m_AddressLatch;		/* Address latch (8-bit) */
 
-	uint32_t		m_PreScalerOPN;		/* OPN Prescaler */
-	uint32_t		m_PreScalerSSG;		/* SSG Prescaler */
+	uint32_t		m_PreScalerOPN;		/* OPN Prescaler (/6 /3 /2) */
+	uint32_t		m_PreScalerSSG;		/* SSG Prescaler (/4 /2 /1) */
 
-	AY::tone_t		m_Tone[3];
-	AY::noise_t		m_Noise;
-	AY::envelope_t	m_Envelope;
-
-	YM::OPN::opna_t m_OPN;				/* OPN unit */
-	YM::adpcma_t	m_ADPCM_A;			/* ADPCM-A unit */
-	YM::adpcmb_t	m_ADPCM_B;			/* ADPCM-B unit */
+	AY::ssg_t		m_SSG;				/* SSG unit */
+	YM::OPN::opna_t m_OPN;				/* OPNA unit */
+	YM::adpcma_t	m_ADPCMA;			/* ADPCM-A unit */
+	YM::adpcmb_t	m_ADPCMB;			/* ADPCM-B unit */
+	
 	uint32_t		m_RhythmChannels;	/* ADPCM-A channel alternating (4 / 6) */
 
-	std::array<uint8_t, 16>			m_Register;
 	std::array<uint8_t, 16'777'216>	m_MemoryADPCMB;	/* 16MB ADPCM-B memory */
 
 	uint32_t	m_ClockSpeed;
@@ -72,6 +69,9 @@ private:
 	void		WriteADPCMB(uint8_t Address, uint8_t Data);
 	void		WriteMode(uint8_t Address, uint8_t Data);
 	void		WriteFM(uint8_t Address, uint8_t Port, uint8_t Data);
+
+	void		SetStatusFlags(uint8_t Flags);
+	void		ClearStatusFlags(uint8_t Flags);
 
 	void		UpdateSSG(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer);
 	void		UpdateOPN(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer);
