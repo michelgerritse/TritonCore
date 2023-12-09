@@ -298,14 +298,14 @@ void RF5C68::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
 	}
 }
 
-void RF5C68::CopyToMemory(size_t Offset, uint8_t* Data, size_t Size)
+void RF5C68::CopyToMemory(uint32_t MemoryID, size_t Offset, uint8_t* Data, size_t Size)
 {
 	if ((Offset + Size) > m_Memory.size()) return;
 
 	memcpy(m_Memory.data() + Offset, Data, Size);
 }
 
-void RF5C68::CopyToMemoryIndirect(size_t Offset, uint8_t* Data, size_t Size)
+void RF5C68::CopyToMemoryIndirect(uint32_t MemoryID, size_t Offset, uint8_t* Data, size_t Size)
 {
 	if ((Offset + Size + m_WaveBank) > m_Memory.size()) return;
 

@@ -507,15 +507,15 @@ int16_t YMZ280B::UpdateSample16(CHANNEL& Channel)
 	return Sample;
 }
 
-void YMZ280B::CopyToMemory(size_t Offset, uint8_t* Data, size_t Size)
+void YMZ280B::CopyToMemory(uint32_t MemoryID, size_t Offset, uint8_t* Data, size_t Size)
 {
 	if ((Offset + Size) > m_Memory.size()) return;
 
 	memcpy(m_Memory.data() + Offset, Data, Size);
 }
 
-void YMZ280B::CopyToMemoryIndirect(size_t Offset, uint8_t* Data, size_t Size)
+void YMZ280B::CopyToMemoryIndirect(uint32_t MemoryID, size_t Offset, uint8_t* Data, size_t Size)
 {
 	/* No specialized implementation needed */
-	CopyToMemory(Offset, Data, Size);
+	CopyToMemory(MemoryID, Offset, Data, Size);
 }

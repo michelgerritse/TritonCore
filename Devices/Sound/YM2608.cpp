@@ -916,17 +916,17 @@ void YM2608::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
 	UpdateOPN(ClockCycles, OutBuffer);
 }
 
-void YM2608::CopyToMemory(size_t Offset, uint8_t* Data, size_t Size)
+void YM2608::CopyToMemory(uint32_t MemoryID, size_t Offset, uint8_t* Data, size_t Size)
 {
 	if ((Offset + Size) > m_MemoryADPCMB.size()) return;
 
 	memcpy(m_MemoryADPCMB.data() + Offset, Data, Size);
 }
 
-void YM2608::CopyToMemoryIndirect(size_t Offset, uint8_t* Data, size_t Size)
+void YM2608::CopyToMemoryIndirect(uint32_t MemoryID, size_t Offset, uint8_t* Data, size_t Size)
 {
 	/* No specialized implementation needed */
-	CopyToMemory(Offset, Data, Size);
+	CopyToMemory(MemoryID, Offset, Data, Size);
 }
 
 void YM2608::UpdateSSG(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)

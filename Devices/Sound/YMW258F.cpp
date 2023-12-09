@@ -638,15 +638,15 @@ uint8_t YMW258F::CalculateRate(CHANNEL& Channel, uint8_t Rate)
 	return Rate;
 }
 
-void YMW258F::CopyToMemory(size_t Offset, uint8_t* Data, size_t Size)
+void YMW258F::CopyToMemory(uint32_t MemoryID, size_t Offset, uint8_t* Data, size_t Size)
 {
 	if ((Offset + Size) > m_Memory.size()) return;
 
 	memcpy(m_Memory.data() + Offset, Data, Size);
 }
 
-void YMW258F::CopyToMemoryIndirect(size_t Offset, uint8_t* Data, size_t Size)
+void YMW258F::CopyToMemoryIndirect(uint32_t MemoryID, size_t Offset, uint8_t* Data, size_t Size)
 {
 	/* No specialized implementation needed */
-	CopyToMemory(Offset, Data, Size);
+	CopyToMemory(MemoryID, Offset, Data, Size);
 }

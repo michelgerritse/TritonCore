@@ -240,15 +240,15 @@ void MSM6295::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer
 	}
 }
 
-void MSM6295::CopyToMemory(size_t Offset, uint8_t* Data, size_t Size)
+void MSM6295::CopyToMemory(uint32_t MemoryID, size_t Offset, uint8_t* Data, size_t Size)
 {
 	if ((Offset + Size) > m_Memory.size()) return;
 
 	memcpy(m_Memory.data() + Offset, Data, Size);
 }
 
-void MSM6295::CopyToMemoryIndirect(size_t Offset, uint8_t* Data, size_t Size)
+void MSM6295::CopyToMemoryIndirect(uint32_t MemoryID, size_t Offset, uint8_t* Data, size_t Size)
 {
 	/* No specialized implementation needed */
-	CopyToMemory(Offset, Data, Size);
+	CopyToMemory(MemoryID, Offset, Data, Size);
 }

@@ -57,10 +57,10 @@ public:
 	{}
 
 	/* IMemoryAccess methods */
-	void CopyToMemory(size_t Offset, uint8_t* Data, size_t Size)
+	void CopyToMemory(uint32_t MemoryID, size_t Offset, uint8_t* Data, size_t Size)
 	{}
 
-	void CopyToMemoryIndirect(size_t Offset, uint8_t* Data, size_t Size)
+	void CopyToMemoryIndirect(uint32_t MemoryID, size_t Offset, uint8_t* Data, size_t Size)
 	{}
 };
 
