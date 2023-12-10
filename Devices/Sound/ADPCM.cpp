@@ -89,7 +89,7 @@ namespace YM::ADPCMA
 
 	*/
 	
-	static int16_t StepSize[49 * 16];
+	static int16_t DiffTable[49 * 16];
 
 	void InitDecoder()
 	{
@@ -97,7 +97,7 @@ namespace YM::ADPCMA
 
 		if (!Initialized)
 		{
-			const int16_t Size[49] =
+			const int16_t SizeTable[49] =
 			{
 				16, 17, 19, 21, 23, 25, 28, 31, 34, 37, 41, 45,
 				50, 55, 60, 66, 73, 80, 88, 97, 107, 118, 130, 143,
@@ -105,20 +105,20 @@ namespace YM::ADPCMA
 				494, 544, 598, 658, 724, 796, 876, 963, 1060, 1166, 1282, 1411, 1552
 			};
 
+			const int16_t DeltaTable[16] =
+			{
+				 1,  3,  5,  7,  9,  11,  13,  15,
+				-1, -3, -5, -7, -9, -11, -13, -15,
+			};
+
 			for (auto Step = 0; Step < 49; Step++)
 			{
-				auto Value = Size[Step];
+				auto Value = SizeTable[Step];
 
 				for (auto Nibble = 0; Nibble < 16; Nibble++)
 				{
-					int16_t Diff = Value / 8;
-
-					if (Nibble & 1) Diff += Value / 4;
-					if (Nibble & 2) Diff += Value / 2;
-					if (Nibble & 4) Diff += Value;
-					if (Nibble & 8) Diff = -Diff;
-
-					StepSize[(Step << 4) | Nibble] = Diff << 4;
+					auto Diff = DeltaTable[Nibble] * Value / 8;
+					DiffTable[(Step * 16) | Nibble] = Diff << 4; /* 12 to 16-bit */
 				}
 			}
 
@@ -130,21 +130,20 @@ namespace YM::ADPCMA
 	{
 		static const int32_t StepAdjust[16] =
 		{
-			-1, -1, -1, -1, 2, 5, 7, 9,
-			-1, -1, -1, -1, 2, 5, 7, 9
+			-1 * 16, -1 * 16, -1 * 16, -1 * 16, 2 * 16, 5 * 16, 7 * 16, 9 * 16,
+			-1 * 16, -1 * 16, -1 * 16, -1 * 16, 2 * 16, 5 * 16, 7 * 16, 9 * 16
 		};
 
 		int32_t Step = *pStep;
-		int16_t Signal = *pSignal << 4;
+		int16_t Signal = *pSignal << 4; /* 12 to 16-bit */
 
 		/* Adjust signal and limit to 12-bit */
-		int16_t Diff = StepSize[(Step << 4) | Nibble];
-		Signal += Diff;
+		Signal += DiffTable[Step + Nibble];
 		*pSignal = Signal >> 4;
 
 		/* Adjust step for next decoding pass */
 		int32_t NewStep = Step + StepAdjust[Nibble];
-		*pStep = std::clamp(NewStep, 0, 48);
+		*pStep = std::clamp(NewStep, 0, 48 * 16);
 	}
 }
 
