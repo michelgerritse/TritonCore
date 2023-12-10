@@ -61,9 +61,9 @@ namespace YM /* Yamaha */
 		 int16_t	OutL;			/* Channel L output */
 		 int16_t	OutR;			/* Channel R output */
 
-		uint32_t	AddrCount;		/* Memory address count */
-		pair32_t	AddrDelta;		/* Memory address delta */
-		uint32_t	AddrShift;		/* Memory address shift */
+		uint32_t	Addr;			/* Current memory address */
+		pair32_t	AddrDelta;		/* Address delta */
+		uint32_t	AddrShift;		/* Address shift */
 
 		int16_t		SignalT1;		/* Decoded ADPCM-B signal */
 		int16_t		SignalT0;		/* Previous decoded ADPCM-B signal */

@@ -553,7 +553,7 @@ void YM2608::WriteADPCMB(uint8_t Address, uint8_t Data)
 			ClearStatusFlags(FLAG_ZERO | FLAG_BRDY | FLAG_EOS);
 			SetStatusFlags(FLAG_PCMBUSY);
 			
-			m_ADPCMB.AddrCount = m_ADPCMB.Start.u32 << m_ADPCMB.AddrShift;
+			m_ADPCMB.Addr = m_ADPCMB.Start.u32 << m_ADPCMB.AddrShift;
 			m_ADPCMB.AddrDelta = 0;
 
 			m_ADPCMB.SignalT1 = 0;
@@ -748,21 +748,21 @@ void YM2608::WriteMode(uint8_t Address, uint8_t Data)
 		break;
 
 	case 0x2D: /* Prescaler selection (/6) */
-		m_PreScalerOPN = 6;
-		m_PreScalerSSG = 4;
+		/*m_PreScalerOPN = 6;
+		m_PreScalerSSG = 4;*/
 		break;
 
 	case 0x2E: /* Prescaler selection (/3) */
-		if (m_PreScalerOPN == 6)
+		/*if (m_PreScalerOPN == 6)
 		{
 			m_PreScalerOPN = 3;
 			m_PreScalerSSG = 2;
-		}
+		}*/
 		break;
 
 	case 0x2F: /* Prescaler selection (/2) */
-		m_PreScalerOPN = 2;
-		m_PreScalerSSG = 1;
+		/*m_PreScalerOPN = 2;
+		m_PreScalerSSG = 1;*/
 		break;
 	}
 }
@@ -1083,56 +1083,48 @@ void YM2608::UpdateOPN(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuff
 			OutR += (m_OPN.Channel[CH5].Output & m_OPN.Channel[CH5].MaskR);
 			OutL += (m_OPN.Channel[CH6].Output & m_OPN.Channel[CH6].MaskL);
 			OutR += (m_OPN.Channel[CH6].Output & m_OPN.Channel[CH6].MaskR);
-
-			/* Limiter (signed 16-bit) */
-			OutL = std::clamp(OutL, -32768, 32767);
-			OutR = std::clamp(OutR, -32768, 32767);
 		}
 
 		/* Update ADPCM-A clock */
-		m_ClockADPCMA -= (m_PreScalerOPN * 24);
+		/*m_ClockADPCMA -= (m_PreScalerOPN * 24);
 		if (m_ClockADPCMA <= 0)
 		{
 			m_ClockADPCMA += (6 * 24 * 3);
 			UpdateADPCMA();
-		}
+		}*/
+		if (m_OPN.EgClock == 0) UpdateADPCMA();
 
 		/* Update ADPCM-B clock */
-		m_ClockADPCMB -= (m_PreScalerOPN * 24);
+		/*m_ClockADPCMB -= (m_PreScalerOPN * 24);
 		if (m_ClockADPCMB <= 0)
 		{
 			m_ClockADPCMB += (6 * 24);
 			UpdateADPCMB();
-		}
+		}*/
+		UpdateADPCMB();
 
 		/* Mix FM, ADPCM-A and ADPCM-B */
 		OutL += m_ADPCMB.OutL + m_ADPCMA.OutL;
 		OutR += m_ADPCMB.OutR + m_ADPCMA.OutR;
 
 		/* 16-bit output */
-		OutBuffer[AudioOut::OPN]->WriteSampleS16(OutL >> 1);
-		OutBuffer[AudioOut::OPN]->WriteSampleS16(OutR >> 1);
+		OutBuffer[AudioOut::OPN]->WriteSampleS16(OutL);
+		OutBuffer[AudioOut::OPN]->WriteSampleS16(OutR);
 	}
 }
 
 void YM2608::UpdateADPCMA()
 {	
+	m_ADPCMA.OutL = 0;
+	m_ADPCMA.OutR = 0;
+	
 	/* Update 4 or 6 channels */
 	for (uint32_t i = 0; i < m_RhythmChannels; i++)
 	{
 		auto& Channel = m_ADPCMA.Channel[i];
 
 		if (Channel.KeyOn)
-		{
-			/* Check for end address */
-			if (Channel.Addr > Channel.End.u32)
-			{
-				Channel.KeyOn = 0;
-				Channel.OutL = 0;
-				Channel.OutR = 0;
-				continue;
-			}
-				
+		{				
 			/* Read nibble from instrument ROM */
 			uint8_t Nibble = (YM::RSS::InstrumentROM[Channel.Addr] >> Channel.NibbleShift) & 0x0F;
 
@@ -1142,20 +1134,28 @@ void YM2608::UpdateADPCMA()
 			/* Increase nibble counter */
 			Channel.Addr += (Channel.NibbleShift >> 2);
 
+			/* Check for end address (inclusive) */
+			if (Channel.Addr > Channel.End.u32) Channel.KeyOn = 0;
+
 			/* Decode ADPCM-A nibble */
 			YM::ADPCMA::Decode(Nibble, &Channel.Step, &Channel.Signal);
 
-			/* Attenuation (3.3 to 3.8 fixed point??) */
-			uint32_t Attn = std::min(m_ADPCMA.TotalLevel + Channel.Level, 63u) << 5;
+			uint32_t Attn = m_ADPCMA.TotalLevel + Channel.Level;
 
-			/* dB to linear conversion (13-bit) */
-			uint32_t Volume = YM::ExpTable[Attn & 0xFF] >> (Attn >> 8);
+			if (Attn <= 63)
+			{
+				/* Attenuation (3.3 to 3.8 fixed point??) */
+				Attn <<= 5;
 
-			/* Multiply and shift ADPCM-A signal */
-			int16_t Sample = (Volume * Channel.Signal) >> 9;
+				/* dB to linear conversion (13-bit) */
+				uint32_t Volume = YM::ExpTable[Attn & 0xFF] >> (Attn >> 8);
 
-			Channel.OutL = Sample & Channel.MaskL;
-			Channel.OutR = Sample & Channel.MaskL;
+				/* Multiply and shift ADPCM-A signal */
+				int16_t Sample = (Volume * Channel.Signal) >> 10;
+
+				Channel.OutL = Sample & Channel.MaskL;
+				Channel.OutR = Sample & Channel.MaskR;
+			}
 		}
 	}
 
@@ -1163,9 +1163,6 @@ void YM2608::UpdateADPCMA()
 	m_RhythmChannels ^= 0x02;
 
 	/* Accumulate samples from all channels */
-	m_ADPCMA.OutL = 0;
-	m_ADPCMA.OutR = 0;
-
 	for (auto& Channel : m_ADPCMA.Channel)
 	{
 		m_ADPCMA.OutL += Channel.OutL;
@@ -1178,47 +1175,43 @@ void YM2608::UpdateADPCMB()
 	if (m_OPN.Status & FLAG_PCMBUSY)
 	{
 		/* Add frequency delta (range: 2362 - 65536) */
-		m_ADPCMB.AddrDelta.u32 += m_ADPCMB.DeltaN.u32; /* + 1 to have a true 55.5KHz output ??*/
+		m_ADPCMB.AddrDelta.u32 += (m_ADPCMB.DeltaN.u32 + 1); /* + 1 to have a true 55.5KHz output ??*/
 
 		if (m_ADPCMB.AddrDelta.u16h) /* Moved to a new nibble address (counter overflow) */
 		{
 			m_ADPCMB.AddrDelta.u16h = 0;
 
-			if ((m_ADPCMB.AddrCount >> m_ADPCMB.AddrShift) == (m_ADPCMB.Stop.u32 + 1))
-			{
-				if (m_ADPCMB.Ctrl1 & CTRL1_REPEAT) /* Loop */
-				{
-					m_ADPCMB.AddrCount = m_ADPCMB.Start.u32 << m_ADPCMB.AddrShift;
-					m_ADPCMB.AddrDelta = 0;
-
-					m_ADPCMB.SignalT1 = 0;
-					m_ADPCMB.SignalT0 = 0;
-					m_ADPCMB.Step = 127;
-					m_ADPCMB.NibbleShift = 4;
-				}
-				else /* Don't loop */
-				{
-					ClearStatusFlags(FLAG_PCMBUSY);
-					SetStatusFlags(FLAG_EOS);
-
-					m_ADPCMB.OutL = 0;
-					m_ADPCMB.OutR = 0;
-					return;
-				}
-			}
-
 			/* Read nibble from external memory */
-			uint8_t Nibble = (m_MemoryADPCMB[m_ADPCMB.AddrCount] >> m_ADPCMB.NibbleShift) & 0x0F;
+			uint8_t Nibble = (m_MemoryADPCMB[m_ADPCMB.Addr] >> m_ADPCMB.NibbleShift) & 0x0F;
 
 			/* Alternate between 1st and 2nd nibble */
 			m_ADPCMB.NibbleShift ^= 4;
 
-			/* Update address counter */
-			m_ADPCMB.AddrCount += (m_ADPCMB.NibbleShift >> 2);
+			/* Increase address counter */
+			m_ADPCMB.Addr = m_ADPCMB.Addr + (m_ADPCMB.NibbleShift >> 2);
+
+			/* Check for stop address (inclusive) */
+			if ((m_ADPCMB.Addr >> m_ADPCMB.AddrShift) > m_ADPCMB.Stop.u32)
+			{
+				if (m_ADPCMB.Ctrl1 & CTRL1_REPEAT) /* Loop */
+				{
+					m_ADPCMB.Addr = m_ADPCMB.Start.u32;
+					//m_ADPCMB.AddrDelta = 0;
+
+					//m_ADPCMB.SignalT1 = 0;
+					//m_ADPCMB.SignalT0 = 0;
+					m_ADPCMB.Step = 127;
+					m_ADPCMB.NibbleShift = 4;
+				}
+				else /* Stop */
+				{
+					ClearStatusFlags(FLAG_PCMBUSY);
+					SetStatusFlags(FLAG_EOS);
+				}
+			}
 
 			/* Limit address counter */
-			if ((m_ADPCMB.AddrCount >> m_ADPCMB.AddrShift) == (m_ADPCMB.Limit.u32 + 1))
-				m_ADPCMB.AddrCount = 0;
+			if ((m_ADPCMB.Addr >> m_ADPCMB.AddrShift) > m_ADPCMB.Limit.u32) m_ADPCMB.Addr = 0;
 
 			/* Save previous sample */
 			m_ADPCMB.SignalT0 = m_ADPCMB.SignalT1;
@@ -1232,10 +1225,9 @@ void YM2608::UpdateADPCMB()
 		uint16_t T1 = m_ADPCMB.AddrDelta.u16l;
 		int16_t Sample = ((T0 * m_ADPCMB.SignalT0) + (T1 * m_ADPCMB.SignalT1)) >> 16;
 
-		/* Level control (256-steps) */
-		Sample = (Sample * m_ADPCMB.LevelCtrl) >> 8;
+		/* Level control (15-bit)  */
+		Sample = (Sample * m_ADPCMB.LevelCtrl) >> 9;
 
-		/* Final output */
 		m_ADPCMB.OutL = Sample & m_ADPCMB.MaskL;
 		m_ADPCMB.OutR = Sample & m_ADPCMB.MaskR;
 	}
@@ -1458,8 +1450,8 @@ void YM2608::UpdateAccumulator(uint32_t ChannelId)
 		break;
 	}
 
-	/* Limiter (signed 14-bit) */
-	m_OPN.Channel[ChannelId].Output = std::clamp<int16_t>(Output, -8192, 8191);
+	/* Limiter (signed 14 to 13-bit) */
+	m_OPN.Channel[ChannelId].Output = std::clamp<int16_t>(Output, -8192, 8191) >> 1;
 }
 
 int16_t YM2608::GetModulation(uint32_t Cycle)
