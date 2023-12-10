@@ -56,7 +56,7 @@ private:
 	
 	uint32_t		m_RhythmChannels;	/* ADPCM-A channel alternating (4 / 6) */
 
-	std::array<uint8_t, 16'777'216>	m_MemoryADPCMB;	/* 16MB ADPCM-B memory */
+	std::array<uint8_t, 0x200000>	m_MemoryADPCMB;	/* 2MB ADPCM-B memory */
 
 	uint32_t	m_ClockSpeed;
 	 int32_t	m_ClockADPCMA;

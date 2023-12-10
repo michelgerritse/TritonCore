@@ -255,6 +255,13 @@ namespace OPL /* FM Operator Type-L */
 
 namespace OPN /* FM Operator Type-N */
 {
+	/* Memory type enumeration */
+	enum Memory: uint32_t
+	{
+		ADPCMA = 0,
+		ADPCMB
+	};
+	
 	/* Operator data type */
 	struct operator_t
 	{

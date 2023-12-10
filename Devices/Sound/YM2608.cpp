@@ -918,9 +918,16 @@ void YM2608::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
 
 void YM2608::CopyToMemory(uint32_t MemoryID, size_t Offset, uint8_t* Data, size_t Size)
 {
-	if ((Offset + Size) > m_MemoryADPCMB.size()) return;
+	switch (MemoryID)
+	{
+	case YM::OPN::Memory::ADPCMB:
+		if ((Offset + Size) > m_MemoryADPCMB.size()) break;
+		memcpy(m_MemoryADPCMB.data() + Offset, Data, Size);
+		break;
 
-	memcpy(m_MemoryADPCMB.data() + Offset, Data, Size);
+	default:
+		break;
+	}
 }
 
 void YM2608::CopyToMemoryIndirect(uint32_t MemoryID, size_t Offset, uint8_t* Data, size_t Size)
