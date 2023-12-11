@@ -80,6 +80,9 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YM2610B.h">
       <Filter>Devices\Sound\Yamaha\OPN</Filter>
     </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YM2610.h">
+      <Filter>Devices\Sound\Yamaha\OPN</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Interfaces">
@@ -163,6 +166,9 @@
       <Filter>Devices\Sound\Yamaha\OPN</Filter>
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\YM2610B.cpp">
+      <Filter>Devices\Sound\Yamaha\OPN</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\YM2610.cpp">
       <Filter>Devices\Sound\Yamaha\OPN</Filter>
     </ClCompile>
   </ItemGroup>
