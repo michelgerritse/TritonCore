@@ -17,7 +17,7 @@ See LICENSE.txt in the root directory of this source tree.
 #define VGM_WORKAROUND /* Workaround for VGM files */
 
 /*
-	Yamaha YM2610B (OPNB)
+	Yamaha YM2610B (OPNB2)
 
 	- 6 FM Channels
 	- 4 Operators per channel
@@ -167,6 +167,8 @@ void YM2610B::Reset(ResetType Type)
 	
 	/* Reset ADPCM-B unit */
 	memset(&m_ADPCMB, 0, sizeof(m_ADPCMB));
+	m_ADPCMB.MaskL = ~0;
+	m_ADPCMB.MaskR = ~0;
 
 	/* Reset ADPCM memory */
 	if (Type == ResetType::PowerOnDefaults)
@@ -1031,9 +1033,6 @@ void YM2610B::UpdateOPN(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuf
 		/* 16-bit output */
 		OutBuffer[AudioOut::OPN]->WriteSampleS16(OutL);
 		OutBuffer[AudioOut::OPN]->WriteSampleS16(OutR);
-
-		//OutBuffer[AudioOut::OPN]->WriteSampleS16(m_ADPCMA.OutL);
-		//OutBuffer[AudioOut::OPN]->WriteSampleS16(m_ADPCMA.OutR);
 	}
 }
 

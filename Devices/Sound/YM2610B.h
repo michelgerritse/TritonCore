@@ -19,7 +19,7 @@ See LICENSE.txt in the root directory of this source tree.
 #include "AY.h"
 #include "YM.h"
 
-/* Yamaha YM2610B (OPNB) */
+/* Yamaha YM2610B (OPNB2) */
 class YM2610B : public ISoundDevice, public IMemoryAccess
 {
 public:
@@ -47,7 +47,7 @@ private:
 	uint8_t			m_AddressLatch;		/* Address latch (8-bit) */
 
 	AY::ssg_t		m_SSG;				/* SSG unit */
-	YM::OPN::opna_t m_OPN;				/* OPNA unit */
+	YM::OPN::opna_t m_OPN;				/* OPNB2 unit */
 	YM::adpcma_t	m_ADPCMA;			/* ADPCM-A unit */
 	YM::adpcmb_t	m_ADPCMB;			/* ADPCM-B unit */
 

@@ -63,7 +63,7 @@ namespace YM /* Yamaha */
 
 		uint32_t	Addr;			/* Current memory address */
 		pair32_t	AddrDelta;		/* Address delta */
-		uint32_t	AddrShift;		/* Address shift */
+		uint32_t	Shift;			/* Address shift */
 
 		int16_t		SignalT1;		/* Decoded ADPCM-B signal */
 		int16_t		SignalT0;		/* Previous decoded ADPCM-B signal */
@@ -351,6 +351,32 @@ namespace OPN /* FM Operator Type-N */
 		uint32_t	ModeCSM;			/* CSM Mode enable flag */
 		uint32_t	ModeSCH;			/* SCH Mode enable flag */
 		
+		uint8_t		Status;				/* Status register (8-bit) */
+		uint8_t		FlagCtrl;			/* Flag control register (8-bit) */
+		uint8_t		IrqEnable;			/* IRQ enable flags */
+	};
+
+	/* OPNB data type */
+	struct opnb_t
+	{
+		operator_t	Slot[16];
+		channel_t	Channel[4];
+		timer_t		TimerA;
+		timer_t		TimerB;
+		lfo_t		LFO;
+
+		uint8_t		FNumLatch;			/* Fnum2 / Block latch (6-bit) */
+		uint8_t		FNumLatch3CH;		/* 3CH Fnum2 / Block latch mode (6-bit) */
+		uint32_t	FNum3CH[3];			/* 3CH Frequency Nr. (11+1-bit) */
+		uint32_t	Block3CH[3];		/* 3CH Block (3-bit) */
+		uint32_t	KeyCode3CH[3];		/* 3CH Key code (5-bit) */
+
+		uint32_t	EgCounter;			/* EG counter (12-bit) */
+		uint32_t	EgClock;			/* EG clock (/3 divisor) */
+
+		uint32_t	Mode3CH;			/* 3CH Mode enable flag */
+		uint32_t	ModeCSM;			/* CSM Mode enable flag */
+
 		uint8_t		Status;				/* Status register (8-bit) */
 		uint8_t		FlagCtrl;			/* Flag control register (8-bit) */
 		uint8_t		IrqEnable;			/* IRQ enable flags */

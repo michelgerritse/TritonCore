@@ -208,8 +208,10 @@ void YM2608::Reset(ResetType Type)
 
 	/* Reset ADPCM-B unit */
 	memset(&m_ADPCMB, 0, sizeof(m_ADPCMB));
-	m_ADPCMB.AddrShift = 2;
-	m_ADPCMB.Limit.u32 = 0xFFFF;
+	m_ADPCMB.Shift = 2;
+	m_ADPCMB.MaskL = ~0;
+	m_ADPCMB.MaskR = ~0;
+	m_ADPCMB.Limit = 0xFFFF;
 
 	/* Reset ADPCM-B memory */
 	if (Type == ResetType::PowerOnDefaults)
@@ -553,7 +555,7 @@ void YM2608::WriteADPCMB(uint8_t Address, uint8_t Data)
 			ClearStatusFlags(FLAG_ZERO | FLAG_BRDY | FLAG_EOS);
 			SetStatusFlags(FLAG_PCMBUSY);
 			
-			m_ADPCMB.Addr = m_ADPCMB.Start.u32 << m_ADPCMB.AddrShift;
+			m_ADPCMB.Addr = m_ADPCMB.Start.u32 << m_ADPCMB.Shift;
 			m_ADPCMB.AddrDelta = 0;
 
 			m_ADPCMB.SignalT1 = 0;
@@ -565,9 +567,9 @@ void YM2608::WriteADPCMB(uint8_t Address, uint8_t Data)
 
 	case 0x01: /* Control register 2 */
 		if ((Data & (CTRL2_RAMTYPE | CTRL2_ROM)) == 0)
-			m_ADPCMB.AddrShift = 2; /* DRAM 1-bit access: 4-bytes aligned */
+			m_ADPCMB.Shift = 2; /* DRAM 1-bit access: 4-bytes aligned */
 		else
-			m_ADPCMB.AddrShift = 5; /* ROM/DRAM 8-bit access: 32-bytes aligned */
+			m_ADPCMB.Shift = 5; /* ROM/DRAM 8-bit access: 32-bytes aligned */
 
 		/* Output selection is implemented as a mask */
 		m_ADPCMB.MaskL = (Data & CTRL2_LCH) ? ~0 : 0;
@@ -1156,6 +1158,11 @@ void YM2608::UpdateADPCMA()
 				Channel.OutL = Sample & Channel.MaskL;
 				Channel.OutR = Sample & Channel.MaskR;
 			}
+			else
+			{
+				Channel.OutL = 0;
+				Channel.OutR = 0;
+			}
 		}
 	}
 
@@ -1191,7 +1198,7 @@ void YM2608::UpdateADPCMB()
 			m_ADPCMB.Addr = m_ADPCMB.Addr + (m_ADPCMB.NibbleShift >> 2);
 
 			/* Check for stop address (inclusive) */
-			if ((m_ADPCMB.Addr >> m_ADPCMB.AddrShift) > m_ADPCMB.Stop.u32)
+			if ((m_ADPCMB.Addr >> m_ADPCMB.Shift) > m_ADPCMB.Stop.u32)
 			{
 				if (m_ADPCMB.Ctrl1 & CTRL1_REPEAT) /* Loop */
 				{
@@ -1211,7 +1218,7 @@ void YM2608::UpdateADPCMB()
 			}
 
 			/* Limit address counter */
-			if ((m_ADPCMB.Addr >> m_ADPCMB.AddrShift) > m_ADPCMB.Limit.u32) m_ADPCMB.Addr = 0;
+			if ((m_ADPCMB.Addr >> m_ADPCMB.Shift) > m_ADPCMB.Limit.u32) m_ADPCMB.Addr = 0;
 
 			/* Save previous sample */
 			m_ADPCMB.SignalT0 = m_ADPCMB.SignalT1;
