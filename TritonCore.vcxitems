@@ -33,6 +33,7 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YM2149.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YM2203.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YM2608.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YM2610B.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YM2612.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YMF278B.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YMW258F.h" />
@@ -55,6 +56,7 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\YM2149.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\YM2203.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\YM2608.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\YM2610B.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\YM2612.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\YMF278B.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\YMW258F.cpp" />
