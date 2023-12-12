@@ -12,41 +12,65 @@ See LICENSE.txt in the root directory of this source tree.
 
 */
 #include "YM2203.h"
-#include "YM.h"
-
-/*
-	Yamaha YM2203 (OPN)
-*/
 
 #define VGM_WORKAROUND /* Workaround for VGM files */
 
-/* Timer A overflow flag */
-#define TIMER_A_OVERFLOW 0x01
+/*
+	Yamaha YM2203 (OPN)
 
-/* Timer B overflow flag */
-#define TIMER_B_OVERFLOW 0x02
+	- 3 FM Channels
+	- 4 Operators per channel
+	- 2 Timers (Timer A and B)
+	- 3CH mode (individual frequency settings for the channel 3 operators)
+	- CSM mode (Timer A generated key-on events)
+	- SSG-EG envelope modes
+	- SSG unit
 
-/* Busy status flag */
-#define BUSY_STATUS_FLAG 0x80
+	Needs fixing:
+	- Currently using a simplified OPN generation method. No 12-stage pipeline yet
+
+	Not implemented:
+	 - Interrupts
+	 - SSG IO ports
+	 - OPN / SSG prescalers. Code is there but disabled due to my underlying sound engine not supporting sample rates above 200kHz
+*/
+
+/* Status register bits */
+#define FLAG_TIMERA		0x01	/* Timer A overflow			*/
+#define FLAG_TIMERB		0x02	/* Timer B overflow			*/
+#define FLAG_BUSY		0x80	/* Register loading			*/
+
+/* Audio output enumeration */
+enum AudioOut
+{
+	SSGA = 0,
+	SSGB,
+	SSGC,
+	OPN
+};
 
 /* Slot naming */
-enum SLOT_NAME
+enum SlotName
 {
 	S1 = 0, S2, S3, S4
 };
 
 /* Channel naming */
-enum CHAN_NAME
+enum ChannelName
 {
 	CH1 = 0, CH2, CH3
 };
 
-static const uint32_t SlotOrder[12] =
+/* Name to Slot ID */
+#define O(c, s) { (c << 2) + s}
+
+/* Envelope phases */
+enum ADSR : uint32_t
 {
-	 0 + S1,  4 + S1,  8 + S1, /* Channel 1 - 3: Slot 1 */
-	 0 + S3,  4 + S3,  8 + S3, /* Channel 1 - 3: Slot 3 */
-	 0 + S2,  4 + S2,  8 + S2, /* Channel 1 - 3: Slot 2 */
-	 0 + S4,  4 + S4,  8 + S4  /* Channel 1 - 3: Slot 4 */
+	Attack = 0,
+	Decay,
+	Sustain,
+	Release
 };
 
 YM2203::YM2203(uint32_t ClockSpeed) :
@@ -79,8 +103,8 @@ const wchar_t* YM2203::GetDeviceName()
 
 void YM2203::Reset(ResetType Type)
 {
-	m_CyclesToDoOPN = 0;
 	m_CyclesToDoSSG = 0;
+	m_CyclesToDoOPN = 0;
 
 	/* Reset prescalers */
 	//m_PreScalerOPN = 6;
@@ -88,126 +112,79 @@ void YM2203::Reset(ResetType Type)
 
 	/* Reset latches */
 	m_AddressLatch = 0;
-	m_FNumLatch = 0;
-	m_3ChFNumLatch = 0;
 
-	/* Reset status register */
-	m_Status = 0;
+	/* Reset SSG unit */
+	memset(&m_SSG, 0, sizeof(m_SSG));
 
-	/* Reset envelope generator */
-	m_EgCounter = 0;
-	m_EgClock = 0;
+	/* Default SSG noise state */
+	m_SSG.Noise.LFSR = 1 << (17 - 1);
 
-	/* Reset timers */
-	m_TimerA = 0;
-	m_TimerB = 0;
-	m_TimerAEnable = 0;
-	m_TimerBEnable = 0;
-	m_TimerALoad = 0;
-	m_TimerBLoad = 0;
-	m_TimerACount = 0;
-	m_TimerBCount = 0;
+	/* Default SSG envelope state */
+	m_SSG.Envelope.Counter = 0;
+	m_SSG.Envelope.Period.u32 = 0;
+	m_SSG.Envelope.Amplitude = AY::Amplitude32[31];
+	m_SSG.Envelope.Step = 31;
+	m_SSG.Envelope.StepDec = 1;
+	m_SSG.Envelope.Hld = 1;
+	m_SSG.Envelope.Alt = 31;
+	m_SSG.Envelope.Inv = 0;
 
-	/* Reset 3CH / CSM mode */
-	m_3ChMode = 0;
-	m_CsmMode = 0;
+	/* Reset OPN unit */
+	memset(&m_OPN, 0, sizeof(m_OPN));
 
-	/* Clear 3CH registers */
-	for (auto i = 0; i < 3; i++)
+	/* Default operator register state */
+	for (auto& Slot : m_OPN.Slot)
 	{
-		m_3ChFNum[i] = 0;
-		m_3ChBlock[i] = 0;
-		m_3ChKeyCode[i] = 0;
-	}
-
-	/* Clear slot registers */
-	for (auto& Slot : m_Slot)
-	{
-		memset(&Slot, 0, sizeof(SLOT));
-
-		/* Default register values */
 		Slot.Multi = 1; /* x0.5 */
-
-		/* Default envelope state */
 		Slot.EgPhase = ADSR::Release;
 		Slot.EgLevel = 0x3FF;
 	}
-
-	/* Clear channel registers  */
-	for (auto& Channel : m_Channel)
-	{
-		memset(&Channel, 0, sizeof(CHANNEL));
-	}
-
-	/* Clear register array (initial state is 0 for all registers) */
-	m_Register.fill(0);
-
-	/* Reset SSG tone generators */
-	for (auto& Tone : m_Tone)
-	{
-		memset(&Tone, 0, sizeof(AY::tone_t));
-	}
-
-	/* Reset SSG noise generator */
-	memset(&m_Noise, 0, sizeof(AY::noise_t));
-	m_Noise.LFSR = 1 << (17 - 1);
-
-	/* Reset SSG envelope generator */
-	m_Envelope.Counter = 0;
-	m_Envelope.Period.u32 = 0;
-	m_Envelope.Amplitude = AY::Amplitude32[31];
-	m_Envelope.Step = 31;
-	m_Envelope.StepDec = 1;
-	m_Envelope.Hld = 1;
-	m_Envelope.Alt = 31;
-	m_Envelope.Inv = 0;
 }
 
 void YM2203::SendExclusiveCommand(uint32_t Command, uint32_t Value)
 {
+	Write(0x00, Command);
+	Write(0x01, Value);
 }
 
 bool YM2203::EnumAudioOutputs(uint32_t OutputNr, AUDIO_OUTPUT_DESC& Desc)
 {
 	switch (OutputNr)
 	{
-		case 0: /* SSG - Channel A */
-			Desc.SampleRate = m_ClockSpeed / (8 * m_PreScalerSSG);
-			Desc.SampleFormat = 0;
-			Desc.Channels = 1;
-			Desc.ChannelMask = SPEAKER_FRONT_CENTER;
-			Desc.Description = L"Channel A";
-			break;
+	case AudioOut::SSGA: /* SSG - Channel A */
+		Desc.SampleRate = m_ClockSpeed / (8 * m_PreScalerSSG);
+		Desc.SampleFormat = 0;
+		Desc.Channels = 1;
+		Desc.ChannelMask = SPEAKER_FRONT_CENTER;
+		Desc.Description = L"Channel A";
+		return true;
 
-		case 1: /* SSG - Channel B */
-			Desc.SampleRate = m_ClockSpeed / (8 * m_PreScalerSSG);
-			Desc.SampleFormat = 0;
-			Desc.Channels = 1;
-			Desc.ChannelMask = SPEAKER_FRONT_CENTER;
-			Desc.Description = L"Channel B";
-			break;
+	case AudioOut::SSGB: /* SSG - Channel B */
+		Desc.SampleRate = m_ClockSpeed / (8 * m_PreScalerSSG);
+		Desc.SampleFormat = 0;
+		Desc.Channels = 1;
+		Desc.ChannelMask = SPEAKER_FRONT_CENTER;
+		Desc.Description = L"Channel B";
+		return true;
 
-		case 2: /* SSG - Channel C */
-			Desc.SampleRate = m_ClockSpeed / (8 * m_PreScalerSSG);
-			Desc.SampleFormat = 0;
-			Desc.Channels = 1;
-			Desc.ChannelMask = SPEAKER_FRONT_CENTER;
-			Desc.Description = L"Channel C";
-			break;
+	case AudioOut::SSGC: /* SSG - Channel C */
+		Desc.SampleRate = m_ClockSpeed / (8 * m_PreScalerSSG);
+		Desc.SampleFormat = 0;
+		Desc.Channels = 1;
+		Desc.ChannelMask = SPEAKER_FRONT_CENTER;
+		Desc.Description = L"Channel C";
+		return true;
 
-		case 3: /* FM */
-			Desc.SampleRate = m_ClockSpeed / (12 * m_PreScalerOPN);
-			Desc.SampleFormat = 0;
-			Desc.Channels = 1;
-			Desc.ChannelMask = SPEAKER_FRONT_CENTER;
-			Desc.Description = L"FM";
-			break;
-
-		default:
-			return false;
+	case AudioOut::OPN: /* FM */
+		Desc.SampleRate = m_ClockSpeed / (12 * m_PreScalerOPN);
+		Desc.SampleFormat = 0;
+		Desc.Channels = 1;
+		Desc.ChannelMask = SPEAKER_FRONT_CENTER;
+		Desc.Description = L"FM";
+		return true;
 	}
 
-	return true;
+	return false;
 }
 
 void YM2203::SetClockSpeed(uint32_t ClockSpeed)
@@ -218,6 +195,23 @@ void YM2203::SetClockSpeed(uint32_t ClockSpeed)
 uint32_t YM2203::GetClockSpeed()
 {
 	return m_ClockSpeed;
+}
+
+uint32_t YM2203::Read(int32_t Address)
+{
+	if ((Address & 0x01) == 0) /* Read status */
+	{
+		return m_OPN.Status;
+	}
+	else /* Read SSG registers */
+	{
+		if (m_AddressLatch < 0x10)
+		{
+			return m_SSG.Register[m_AddressLatch];
+		}
+	}
+
+	return 0;
 }
 
 void YM2203::Write(uint32_t Address, uint32_t Data)
@@ -231,116 +225,121 @@ void YM2203::Write(uint32_t Address, uint32_t Data)
 	}
 	else /* Data write mode */
 	{
-		if (m_AddressLatch < 0x10) /* Write SSG data (0x00 - 0x10) */
+		switch (m_AddressLatch & 0xF0)
 		{
+		case 0x00: /* Write SSG data (0x00 - 0x0F) */
 			WriteSSG(m_AddressLatch, Data);
-		}
-		else if (m_AddressLatch < 0x30) /* Write mode data (0x20 - 0x2F) */
-		{
+			break;
+
+		case 0x10: /* Not used (0x10 - 0x1F) */
+			break;
+
+		case 0x20: /* Write OPN mode data (0x20 - 0x2F) */
 			WriteMode(m_AddressLatch, Data);
-		}
-		else /* Write FM data (0x30 - 0xB2) */
-		{
+			break;
+
+		default: /* Write OPN FM data (0x30 - 0xB6) */
 			WriteFM(m_AddressLatch, Data);
+			break;
 		}
 	}
 }
 
-void YM2203::WriteSSG(uint8_t Register, uint8_t Data)
+void YM2203::WriteSSG(uint8_t Address, uint8_t Data)
 {
-	Register &= 0x0F;
-	m_Register[Register] = Data;
+	Address &= 0x0F;
+	m_SSG.Register[Address] = Data;
 
-	Data &= AY::Mask[Register]; /* Mask unused bits after storing */
+	Data &= AY::Mask[Address]; /* Mask unused bits after storing */
 
-	switch (Register)
+	switch (Address)
 	{
 	case 0x00: /* Channel A Tone Period (Fine Tune) */
-		m_Tone[0].Period.u8ll = Data;
+		m_SSG.Tone[0].Period.u8ll = Data;
 		break;
 
 	case 0x01: /* Channel A Tone Period (Coarse Tune) */
-		m_Tone[0].Period.u8lh = Data;
+		m_SSG.Tone[0].Period.u8lh = Data;
 		break;
 
 	case 0x02: /* Channel B Tone Period (Fine Tune) */
-		m_Tone[1].Period.u8ll = Data;
+		m_SSG.Tone[1].Period.u8ll = Data;
 		break;
 
 	case 0x03: /* Channel B Tone Period (Coarse Tune) */
-		m_Tone[1].Period.u8lh = Data;
+		m_SSG.Tone[1].Period.u8lh = Data;
 		break;
 
 	case 0x04: /* Channel C Tone Period (Fine Tune) */
-		m_Tone[2].Period.u8ll = Data;
+		m_SSG.Tone[2].Period.u8ll = Data;
 		break;
 
 	case 0x05: /* Channel C Tone Period (Coarse Tune) */
-		m_Tone[2].Period.u8lh = Data;
+		m_SSG.Tone[2].Period.u8lh = Data;
 		break;
 
 	case 0x06: /* Noise Period */
-		m_Noise.Period = Data;
+		m_SSG.Noise.Period = Data;
 		break;
 
 	case 0x07: /* Mixer Control - I/O Enable */
-		m_Tone[0].ToneDisable = (Data >> 0) & 1;
-		m_Tone[1].ToneDisable = (Data >> 1) & 1;
-		m_Tone[2].ToneDisable = (Data >> 2) & 1;
+		m_SSG.Tone[0].ToneDisable = (Data >> 0) & 1;
+		m_SSG.Tone[1].ToneDisable = (Data >> 1) & 1;
+		m_SSG.Tone[2].ToneDisable = (Data >> 2) & 1;
 
-		m_Tone[0].NoiseDisable = (Data >> 3) & 1;
-		m_Tone[1].NoiseDisable = (Data >> 4) & 1;
-		m_Tone[2].NoiseDisable = (Data >> 5) & 1;
+		m_SSG.Tone[0].NoiseDisable = (Data >> 3) & 1;
+		m_SSG.Tone[1].NoiseDisable = (Data >> 4) & 1;
+		m_SSG.Tone[2].NoiseDisable = (Data >> 5) & 1;
 		break;
 
 	case 0x08: /* Channel A Amplitude Control */
-		m_Tone[0].Amplitude = AY::Amplitude32[AY::MapLvl4to5[Data & 0x0F]];
-		m_Tone[0].AmpCtrl = (Data & 0x10) >> 4;
+		m_SSG.Tone[0].Amplitude = AY::Amplitude32[AY::MapLvl4to5[Data & 0x0F]];
+		m_SSG.Tone[0].AmpCtrl = (Data & 0x10) >> 4;
 		break;
 
 	case 0x09: /* Channel B Amplitude Control */
-		m_Tone[1].Amplitude = AY::Amplitude32[AY::MapLvl4to5[Data & 0x0F]];
-		m_Tone[1].AmpCtrl = (Data & 0x10) >> 4;
+		m_SSG.Tone[1].Amplitude = AY::Amplitude32[AY::MapLvl4to5[Data & 0x0F]];
+		m_SSG.Tone[1].AmpCtrl = (Data & 0x10) >> 4;
 		break;
 
 	case 0x0A: /* Channel C Amplitude Control */
-		m_Tone[2].Amplitude = AY::Amplitude32[AY::MapLvl4to5[Data & 0x0F]];
-		m_Tone[2].AmpCtrl = (Data & 0x10) >> 4;
+		m_SSG.Tone[2].Amplitude = AY::Amplitude32[AY::MapLvl4to5[Data & 0x0F]];
+		m_SSG.Tone[2].AmpCtrl = (Data & 0x10) >> 4;
 		break;
 
 	case 0x0B: /* Envelope Period (Fine Tune) */
-		m_Envelope.Period.u8ll = Data;
+		m_SSG.Envelope.Period.u8ll = Data;
 		break;
 
 	case 0x0C: /* Envelope Period (Coarse Tune) */
-		m_Envelope.Period.u8lh = Data;
+		m_SSG.Envelope.Period.u8lh = Data;
 		break;
 
 	case 0x0D: /* Envelope Shape / Cycle Control */
-		m_Envelope.Counter = 0;
-		m_Envelope.Step = 31;
-		m_Envelope.StepDec = 1;
+		m_SSG.Envelope.Counter = 0;
+		m_SSG.Envelope.Step = 31;
+		m_SSG.Envelope.StepDec = 1;
 
 		/* If attacking, apply output inversion */
-		m_Envelope.Inv = (Data & 0x04) ? 31 : 0;
+		m_SSG.Envelope.Inv = (Data & 0x04) ? 31 : 0;
 
 		if (Data & 0x08) /* Continuous cycles */
 		{
-			m_Envelope.Hld = Data & 0x01;
+			m_SSG.Envelope.Hld = Data & 0x01;
 
-			if (m_Envelope.Hld)
-				m_Envelope.Alt = (Data & 0x02) ? 0 : 31;
+			if (m_SSG.Envelope.Hld)
+				m_SSG.Envelope.Alt = (Data & 0x02) ? 0 : 31;
 			else
-				m_Envelope.Alt = (Data & 0x02) ? 31 : 0;
+				m_SSG.Envelope.Alt = (Data & 0x02) ? 31 : 0;
 		}
 		else /* Single cycle */
 		{
-			m_Envelope.Hld = 1;
-			m_Envelope.Alt = m_Envelope.Inv ^ 31;
+			m_SSG.Envelope.Hld = 1;
+			m_SSG.Envelope.Alt = m_SSG.Envelope.Inv ^ 31;
 		}
 
 		/* Set initial ouput volume */
-		m_Envelope.Amplitude = AY::Amplitude32[m_Envelope.Step ^ m_Envelope.Inv];
+		m_SSG.Envelope.Amplitude = AY::Amplitude32[m_SSG.Envelope.Step ^ m_SSG.Envelope.Inv];
 		break;
 
 	case 0x0E: /* I/O Port A Data Store */
@@ -353,55 +352,68 @@ void YM2203::WriteSSG(uint8_t Register, uint8_t Data)
 	}
 }
 
-void YM2203::WriteMode(uint8_t Register, uint8_t Data)
+void YM2203::WriteMode(uint8_t Address, uint8_t Data)
 {
-	switch (Register) /* 0x20 - 0x2F */
+	switch (Address) /* 0x20 - 0x2F */
 	{
+	case 0x20: /* Not used */
+		break;
+
 	case 0x21: /* LSI Test */
 		/* Not implemented */
 		break;
 
+	case 0x22: /* Not used */
+		break;
+
+	case 0x23: /* Not used */
+		break;
+
 	case 0x24: /* Timer A [9:2] */
-		m_TimerA = (Data << 2) | (m_TimerA & 0x03);
+		m_OPN.TimerA.Period &= 0x03;
+		m_OPN.TimerA.Period |= (Data << 2);
 		break;
 
 	case 0x25: /* Timer A [1:0] */
-		m_TimerA = (m_TimerA & 0x3FC) | (Data & 0x03);
+		m_OPN.TimerA.Period &= 0x3FC;
+		m_OPN.TimerA.Period |= (Data & 0x03);
 		break;
 
 	case 0x26: /* Timer B */
-		m_TimerB = Data;
+		m_OPN.TimerB.Period = Data;
 		break;
 
 	case 0x27: /* 3CH mode / Timer control */
-		/* Timer A start / stop */
-		if (m_TimerALoad ^ (Data & 0x01))
+	{
+		/* Timer A and B start / stop */
+		auto StartA = (Data >> 0) & 0x01;
+		auto StartB = (Data >> 1) & 0x01;
+
+		if (m_OPN.TimerA.Load ^ StartA)
 		{
-			m_TimerALoad = Data & 0x01;
-			if (m_TimerALoad) m_TimerACount = 1024 - m_TimerA;
+			m_OPN.TimerA.Load = StartA;
+			m_OPN.TimerA.Counter = 1024 - m_OPN.TimerA.Period;
 		}
 
-		/* Timer B start / stop */
-		if (m_TimerBLoad ^ (Data & 0x02))
+		if (m_OPN.TimerB.Load ^ StartB)
 		{
-			m_TimerBLoad = Data & 0x02;
-			if (m_TimerBLoad) m_TimerBCount = (256 - m_TimerB) << 4; /* Note: period x 16 to allign with Timer A */
+			m_OPN.TimerB.Load = StartB;
+			m_OPN.TimerB.Counter = (256 - m_OPN.TimerB.Period) << 4; /* Note: period x16 to sync with Timer A */
 		}
 
 		/* Timer A/B enable */
-		m_TimerAEnable = (Data >> 2) & 0x01;
-		m_TimerBEnable = (Data >> 3) & 0x01;
+		m_OPN.TimerA.Enable = (Data >> 2) & 0x01;
+		m_OPN.TimerB.Enable = (Data >> 3) & 0x01;
 
 		/* Timer A/B overflow flag reset */
-		if (Data & 0x10) m_Status &= ~TIMER_A_OVERFLOW;
-		if (Data & 0x20) m_Status &= ~TIMER_B_OVERFLOW;
+		if (Data & 0x10) ClearStatusFlags(FLAG_TIMERA);
+		if (Data & 0x20) ClearStatusFlags(FLAG_TIMERB);
 
 		/* 3CH / CSM mode */
-		m_3ChMode = ((Data & 0xC0) != 0x00) ? 1 : 0;
-		m_CsmMode = ((Data & 0xC0) == 0x80) ? 1 : 0;
-
-		assert(m_CsmMode == 0);
+		m_OPN.Mode3CH = ((Data & 0xC0) != 0x00) ? 1 : 0;
+		m_OPN.ModeCSM = ((Data & 0xC0) == 0x80) ? 1 : 0;
 		break;
+	}
 
 	case 0x28: /* Key On/Off */
 	{
@@ -409,10 +421,10 @@ void YM2203::WriteMode(uint8_t Register, uint8_t Data)
 
 		uint32_t ChannelId = (Data & 0x03) << 2;
 
-		m_Slot[ChannelId + S1].KeyLatch = (Data & 0x10) >> 4;
-		m_Slot[ChannelId + S2].KeyLatch = (Data & 0x20) >> 5;
-		m_Slot[ChannelId + S3].KeyLatch = (Data & 0x40) >> 6;
-		m_Slot[ChannelId + S4].KeyLatch = (Data & 0x80) >> 7;
+		m_OPN.Slot[ChannelId + S1].KeyLatch = (Data >> 4) & 0x01;
+		m_OPN.Slot[ChannelId + S2].KeyLatch = (Data >> 5) & 0x01;
+		m_OPN.Slot[ChannelId + S3].KeyLatch = (Data >> 6) & 0x01;
+		m_OPN.Slot[ChannelId + S4].KeyLatch = (Data >> 7) & 0x01;
 
 #ifdef VGM_WORKAROUND
 		/*	Note: This is a work-around as key events should not be procesed here.
@@ -427,12 +439,24 @@ void YM2203::WriteMode(uint8_t Register, uint8_t Data)
 		break;
 	}
 
-	case 0x2D: /* Prescaler selection */
+	case 0x29: /* Not used */
+		break;
+
+	case 0x2A: /* Not used */
+		break;
+
+	case 0x2B: /* Not used */
+		break;
+
+	case 0x2C: /* Not used */
+		break;
+
+	case 0x2D: /* Prescaler selection (/6) */
 		/*m_PreScalerOPN = 6;
 		m_PreScalerSSG = 4;*/
 		break;
 
-	case 0x2E: /* Prescaler selection */
+	case 0x2E: /* Prescaler selection (/3) */
 		/*if (m_PreScalerOPN == 6)
 		{
 			m_PreScalerOPN = 3;
@@ -440,29 +464,30 @@ void YM2203::WriteMode(uint8_t Register, uint8_t Data)
 		}*/
 		break;
 
-	case 0x2F: /* Prescaler selection */
+	case 0x2F: /* Prescaler selection (/2) */
 		/*m_PreScalerOPN = 2;
 		m_PreScalerSSG = 1;*/
 		break;
 	}
 }
 
-void YM2203::WriteFM(uint8_t Register, uint8_t Data)
+void YM2203::WriteFM(uint8_t Address, uint8_t Data)
 {
 	/* Slot address mapping: S1 - S3 - S2 - S4 */
 	static const int32_t SlotMap[16] =
 	{
-		0, 4, 8, -1, 2, 6, 10, -1, 1, 5, 9, -1, 3, 7, 11, -1
+		O(CH1,S1), O(CH2,S1), O(CH3,S1), -1, O(CH1,S3), O(CH2,S3), O(CH3,S3), -1,
+		O(CH1,S2), O(CH2,S2), O(CH3,S2), -1, O(CH1,S4), O(CH2,S4), O(CH3,S4), -1
 	};
 
-	int32_t SlotId = SlotMap[Register & 0x0F];
+	int32_t SlotId = SlotMap[Address & 0x0F];
 	if (SlotId == -1) return;
 
-	if (Register < 0xA0) /* Slot register map (0x30 - 0x9F) */
+	if (Address < 0xA0) /* Slot register map (0x30 - 0x9F) */
 	{
-		auto& Slot = m_Slot[SlotId];
+		auto& Slot = m_OPN.Slot[SlotId];
 
-		switch (Register & 0xF0)
+		switch (Address & 0xF0)
 		{
 		case 0x30: /* Detune / Multiply */
 			Slot.Detune = (Data >> 4) & 0x07;
@@ -480,6 +505,7 @@ void YM2203::WriteFM(uint8_t Register, uint8_t Data)
 			break;
 
 		case 0x60: /* Decay Rate / AM On */
+			Slot.AmOn = (Data & 0x80) ? ~0 : 0; /* Note: AM On/Off is implemented as a mask */
 			Slot.EgRate[ADSR::Decay] = Data & 0x1F;
 			break;
 
@@ -498,55 +524,55 @@ void YM2203::WriteFM(uint8_t Register, uint8_t Data)
 			break;
 
 		case 0x90: /* SSG-EG Envelope Control */
-			Slot.SsgEnable= (Data >> 3) & 0x01;
+			Slot.SsgEnable = (Data >> 3) & 0x01;
 			Slot.SsgEgInv = (Data >> 2) & 0x01;
 			Slot.SsgEgAlt = (Data >> 1) & 0x01;
 			Slot.SsgEgHld = (Data >> 0) & 0x01;
-
-			assert(Slot.SsgEnable == 0);
 			break;
 		}
 	}
-	else /* Channel register map (0xA0 - 0xB2) */
+	else /* Channel register map (0xA0 - 0xB6) */
 	{
-		auto& Chan = m_Channel[SlotId >> 2];
+		auto& Chan = m_OPN.Channel[SlotId >> 2];
 
-		switch (Register & 0xFC)
+		switch (Address & 0xFC)
 		{
 		case 0xA0: /* F-Num 1 */
-			Chan.FNum = ((m_FNumLatch & 0x07) << 8) | Data;
-			Chan.Block = m_FNumLatch >> 3;
+			Chan.FNum = m_OPN.FnumLatch | Data;
+			Chan.Block = m_OPN.BlockLatch;
 			Chan.KeyCode = (Chan.Block << 2) | YM::OPN::Note[Chan.FNum >> 7];
 			break;
 
 		case 0xA4: /* F-Num 2 / Block Latch */
-			m_FNumLatch = Data & 0x3F;
+			m_OPN.FnumLatch  = (Data & 0x07) << 8;
+			m_OPN.BlockLatch = (Data >> 3) & 0x07;
 			break;
 
 		case 0xA8: /* 3 Ch-3 F-Num  */
 			/* Slot order for 3CH mode */
-			if (Register == 0xA9)
+			if (Address == 0xA9)
 			{
-				m_3ChFNum[S1] = ((m_3ChFNumLatch & 0x07) << 8) | Data;
-				m_3ChBlock[S1] = m_3ChFNumLatch >> 3;
-				m_3ChKeyCode[S1] = (m_3ChBlock[S1] << 2) | YM::OPN::Note[m_3ChFNum[S1] >> 7];
+				m_OPN.Fnum3CH[S1] = m_OPN.FnumLatch3CH | Data;
+				m_OPN.Block3CH[S1] = m_OPN.BlockLatch3CH;
+				m_OPN.KeyCode3CH[S1] = (m_OPN.Block3CH[S1] << 2) | YM::OPN::Note[m_OPN.Fnum3CH[S1] >> 7];
 			}
-			else if (Register == 0xA8)
+			else if (Address == 0xA8)
 			{
-				m_3ChFNum[S3] = ((m_3ChFNumLatch & 0x07) << 8) | Data;
-				m_3ChBlock[S3] = m_3ChFNumLatch >> 3;
-				m_3ChKeyCode[S3] = (m_3ChBlock[S3] << 2) | YM::OPN::Note[m_3ChFNum[S3] >> 7];
+				m_OPN.Fnum3CH[S3] = m_OPN.FnumLatch3CH | Data;
+				m_OPN.Block3CH[S3] = m_OPN.BlockLatch3CH;
+				m_OPN.KeyCode3CH[S3] = (m_OPN.Block3CH[S3] << 2) | YM::OPN::Note[m_OPN.Fnum3CH[S3] >> 7];
 			}
 			else /* 0xAA */
 			{
-				m_3ChFNum[S2] = ((m_3ChFNumLatch & 0x07) << 8) | Data;
-				m_3ChBlock[S2] = m_3ChFNumLatch >> 3;
-				m_3ChKeyCode[S2] = (m_3ChBlock[S2] << 2) | YM::OPN::Note[m_3ChFNum[S2] >> 7];
+				m_OPN.Fnum3CH[S2] = m_OPN.FnumLatch3CH | Data;
+				m_OPN.Block3CH[S2] = m_OPN.BlockLatch3CH;
+				m_OPN.KeyCode3CH[S2] = (m_OPN.Block3CH[S2] << 2) | YM::OPN::Note[m_OPN.Fnum3CH[S2] >> 7];
 			}
 			break;
 
 		case 0xAC: /* 3 Ch-3 F-Num / Block Latch */
-			m_3ChFNumLatch = Data & 0x3F;
+			m_OPN.FnumLatch3CH  = (Data & 0x07) << 8;
+			m_OPN.BlockLatch3CH = (Data >> 3) & 0x07;
 			break;
 
 		case 0xB0: /* Feedback / Connection */
@@ -555,6 +581,21 @@ void YM2203::WriteFM(uint8_t Register, uint8_t Data)
 			break;
 		}
 	}
+}
+
+void YM2203::SetStatusFlags(uint8_t Flags)
+{
+	m_OPN.Status |= Flags;
+
+	if (Flags & (FLAG_TIMERA | FLAG_TIMERB))
+	{
+		/* TODO: Set interrupt line */
+	}
+}
+
+void YM2203::ClearStatusFlags(uint8_t Flags)
+{
+	m_OPN.Status &= ~Flags;
 }
 
 void YM2203::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
@@ -575,53 +616,53 @@ void YM2203::UpdateSSG(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuff
 	while (Samples-- != 0)
 	{
 		/* Update envelope generator */
-		if ((m_Envelope.Counter += 2) >= m_Envelope.Period.u32) //FIXME: should be += 1
+		if ((m_SSG.Envelope.Counter += 2) >= m_SSG.Envelope.Period.u32) //FIXME: should be += 1
 		{
 			/* Reset counter */
-			m_Envelope.Counter = 0;
+			m_SSG.Envelope.Counter = 0;
 
 			/* Count down step counter (31 -> 0) */
-			m_Envelope.Step -= m_Envelope.StepDec;
+			m_SSG.Envelope.Step -= m_SSG.Envelope.StepDec;
 
-			if (m_Envelope.Step & 32) /* Envelope cycle completed */
+			if (m_SSG.Envelope.Step & 32) /* Envelope cycle completed */
 			{
 				/* Restart cycle */
-				m_Envelope.Step = 31;
+				m_SSG.Envelope.Step = 31;
 
 				/* Stop counting (if needed) */
-				m_Envelope.StepDec = m_Envelope.Hld ^ 1;
+				m_SSG.Envelope.StepDec = m_SSG.Envelope.Hld ^ 1;
 
 				/* Toggle output inversion */
-				m_Envelope.Inv ^= m_Envelope.Alt;
+				m_SSG.Envelope.Inv ^= m_SSG.Envelope.Alt;
 			}
 
 			/* Apply output inversion and lookup amplitude */
-			m_Envelope.Amplitude = AY::Amplitude32[m_Envelope.Step ^ m_Envelope.Inv];
+			m_SSG.Envelope.Amplitude = AY::Amplitude32[m_SSG.Envelope.Step ^ m_SSG.Envelope.Inv];
 		}
 
 		/* Update noise generator */
-		if (m_Noise.Prescaler ^= 1)
+		if (m_SSG.Noise.Prescaler ^= 1)
 		{
-			if ((m_Noise.Counter += 2) >= m_Noise.Period) //FIXME: should be += 1
+			if ((m_SSG.Noise.Counter += 2) >= m_SSG.Noise.Period) //FIXME: should be += 1
 			{
 				/* Reset counter */
-				m_Noise.Counter = 0;
+				m_SSG.Noise.Counter = 0;
 
 				/* Update output flag */
-				m_Noise.Output = m_Noise.LFSR & 1;
+				m_SSG.Noise.Output = m_SSG.Noise.LFSR & 1;
 
 				/* Tap bits 3 and 0 (XOR feedback) */
-				uint32_t Seed = ((m_Noise.LFSR >> 3) ^ (m_Noise.LFSR >> 0)) & 1;
+				uint32_t Seed = ((m_SSG.Noise.LFSR >> 3) ^ (m_SSG.Noise.LFSR >> 0)) & 1;
 
 				/* Shift LFSR and apply seed (17-bit wide) */
-				m_Noise.LFSR = (m_Noise.LFSR >> 1) | (Seed << 16);
+				m_SSG.Noise.LFSR = (m_SSG.Noise.LFSR >> 1) | (Seed << 16);
 			}
 		}
 
 		/* Update, mix and output tone generators */
 		for (auto i = 0; i < 3; i++)
 		{
-			auto& Tone = m_Tone[i];
+			auto& Tone = m_SSG.Tone[i];
 
 			if ((Tone.Counter += 2) >= Tone.Period.u32) //FIXME: should be += 1
 			{
@@ -633,36 +674,41 @@ void YM2203::UpdateSSG(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuff
 			}
 
 			/* Mix tone and noise (implemented as a mask) */
-			Mask = ~(((Tone.Output | Tone.ToneDisable) & (m_Noise.Output | Tone.NoiseDisable)) - 1);
+			Mask = ~(((Tone.Output | Tone.ToneDisable) & (m_SSG.Noise.Output | Tone.NoiseDisable)) - 1);
 
 			/* Amplitude control */
-			Out = Tone.AmpCtrl ? m_Envelope.Amplitude : Tone.Amplitude;
+			Out = Tone.AmpCtrl ? m_SSG.Envelope.Amplitude : Tone.Amplitude;
 
 			/* 16-bit output */
-			OutBuffer[i]->WriteSampleS16(Out & Mask);
+			OutBuffer[AudioOut::SSGA + i]->WriteSampleS16((Out & Mask) >> 1);
 		}
 	}
 }
 
 void YM2203::UpdateOPN(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
 {
+	static const uint32_t SlotOrder[] =
+	{
+		 O(CH1,S1), O(CH2,S1), O(CH3,S1), O(CH1,S3), O(CH2,S3), O(CH3,S3),
+		 O(CH1,S2), O(CH2,S2), O(CH3,S2), O(CH1,S4), O(CH2,S4), O(CH3,S4)
+	};
+	
 	uint32_t TotalCycles = ClockCycles + m_CyclesToDoOPN;
 	uint32_t Samples = TotalCycles / (12 * m_PreScalerOPN);
 	m_CyclesToDoOPN = TotalCycles % (12 * m_PreScalerOPN);
 
-	int16_t Out;
-
 	while (Samples-- != 0)
 	{
-		Out = 0;
+		ClearAccumulator();
 
-		/* Update Timer A and Timer B */
+		/* Update Timer A and Timer B*/
 		UpdateTimers();
 
-		/* Update Envelope Generator clock */
-		m_EgClock = (m_EgClock + 1) % 3;
-		m_EgCounter += (m_EgClock >> 1);
-		m_EgCounter &= 0xFFF;
+		/* Update envelope clock */
+		m_OPN.EgClock = (m_OPN.EgClock + 1) % 3;
+
+		/* Update envelope counter */
+		m_OPN.EgCounter = (m_OPN.EgCounter + (m_OPN.EgClock >> 1)) & 0xFFF;
 
 		/* Update slots (operators) */
 		for (auto& Slot : SlotOrder)
@@ -677,47 +723,42 @@ void YM2203::UpdateOPN(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuff
 		UpdateAccumulator(CH2);
 		UpdateAccumulator(CH3);
 
-		Out += m_Channel[CH1].Output;
-		Out += m_Channel[CH2].Output;
-		Out += m_Channel[CH3].Output;
-
-		/* 16-bit DAC output */
-		OutBuffer[3]->WriteSampleS16(Out);
+		/* 16-bit output */
+		OutBuffer[AudioOut::OPN]->WriteSampleS16(m_OPN.Out);
 	}
 }
 
 void YM2203::PrepareSlot(uint32_t SlotId)
 {
 	uint32_t ChannelId = SlotId >> 2;
-	auto& Chan = m_Channel[ChannelId];
-	auto& Slot = m_Slot[SlotId];
+	auto& Chan = m_OPN.Channel[ChannelId];
+	auto& Slot = m_OPN.Slot[SlotId];
 
 	/* Copy some values for later processing */
 	Slot.FNum = Chan.FNum;
 	Slot.Block = Chan.Block;
 	Slot.KeyCode = Chan.KeyCode;
 
-	if (m_3ChMode)
+	if (m_OPN.Mode3CH)
 	{
 		auto i = SlotId & 3;
 
 		/* Get Block/FNum for channel 3: S1-S2-S3 */
 		if ((ChannelId == CH3) && (i != S4))
 		{
-			Slot.FNum = m_3ChFNum[i];
-			Slot.Block = m_3ChBlock[i];
-			Slot.KeyCode = m_3ChKeyCode[i];
+			Slot.FNum = m_OPN.Fnum3CH[i];
+			Slot.Block = m_OPN.Block3CH[i];
+			Slot.KeyCode = m_OPN.KeyCode3CH[i];
 		}
 	}
 }
 
 void YM2203::UpdatePhaseGenerator(uint32_t SlotId)
 {
-	uint32_t ChannelId = SlotId >> 2;
-	auto& Chan = m_Channel[ChannelId];
-	auto& Slot = m_Slot[SlotId];
+	auto& Chan = m_OPN.Channel[SlotId >> 2];
+	auto& Slot = m_OPN.Slot[SlotId];
 
-	/*	Block shift (17-bit result) */
+	/* Block shift (17-bit result) */
 	uint32_t Inc = (Slot.FNum << Slot.Block) >> 1;
 
 	/* Detune (17-bit result, might overflow) */
@@ -733,8 +774,8 @@ void YM2203::UpdatePhaseGenerator(uint32_t SlotId)
 void YM2203::UpdateEnvelopeGenerator(uint32_t SlotId)
 {
 	uint32_t ChannelId = SlotId >> 2;
-	auto& Chan = m_Channel[ChannelId];
-	auto& Slot = m_Slot[SlotId];
+	auto& Chan = m_OPN.Channel[ChannelId];
+	auto& Slot = m_OPN.Slot[SlotId];
 
 	/*-------------------------------------*/
 	/* Step 0: Key On / Off event handling */
@@ -775,7 +816,7 @@ void YM2203::UpdateEnvelopeGenerator(uint32_t SlotId)
 	/*-------------------------------*/
 	/* Step 2: Envelope update cycle */
 	/*-------------------------------*/
-	if (m_EgClock == ChannelId)
+	if (m_OPN.EgClock == ChannelId)
 	{
 		/* When attacking, move to the decay phase when attenuation level is minimal */
 		if ((Slot.EgPhase | Slot.EgLevel) == 0)
@@ -796,12 +837,12 @@ void YM2203::UpdateEnvelopeGenerator(uint32_t SlotId)
 		uint32_t Shift = YM::OPN::EgShift[Rate];
 		uint32_t Mask = (1 << Shift) - 1;
 
-		if ((m_EgCounter & Mask) == 0) /* Counter overflowed */
+		if ((m_OPN.EgCounter & Mask) == 0) /* Counter overflowed */
 		{
 			uint16_t Level = Slot.EgLevel;
 
 			/* Get update cycle (8 cycles in total) */
-			uint32_t Cycle = (m_EgCounter >> Shift) & 0x07;
+			uint32_t Cycle = (m_OPN.EgCounter >> Shift) & 0x07;
 
 			/* Lookup attenuation adjustment */
 			uint32_t AttnInc = YM::OPN::EgLevelAdjust[Rate][Cycle];
@@ -849,7 +890,7 @@ void YM2203::UpdateEnvelopeGenerator(uint32_t SlotId)
 
 void YM2203::UpdateOperatorUnit(uint32_t SlotId)
 {
-	auto& Slot = m_Slot[SlotId];
+	auto& Slot = m_OPN.Slot[SlotId];
 
 	/* Phase modulation (10-bit) */
 	uint32_t Phase = (Slot.PgPhase >> 10) + GetModulation(SlotId);
@@ -868,42 +909,47 @@ void YM2203::UpdateOperatorUnit(uint32_t SlotId)
 	Slot.Output[0] = Output;
 }
 
+void YM2203::ClearAccumulator()
+{
+	m_OPN.Out = 0;
+}
+
 void YM2203::UpdateAccumulator(uint32_t ChannelId)
 {
 	int16_t Output = 0;
 	uint32_t SlotId = ChannelId << 2;
 
 	/* Accumulate output */
-	switch (m_Channel[ChannelId].Algo)
+	switch (m_OPN.Channel[ChannelId].Algo)
 	{
 	case 0:
 	case 1:
 	case 2:
 	case 3: /* S4 */
-		Output = m_Slot[SlotId + S4].Output[0];
+		Output = m_OPN.Slot[SlotId + S4].Output[0];
 		break;
 
 	case 4: /* S2 + S4 */
-		Output = m_Slot[SlotId + S2].Output[0] + m_Slot[SlotId + S4].Output[0];
+		Output = m_OPN.Slot[SlotId + S2].Output[0] + m_OPN.Slot[SlotId + S4].Output[0];
 		break;
 
 	case 5:
 	case 6: /* S2 + S3 + S4 */
-		Output = m_Slot[SlotId + S2].Output[0] + m_Slot[SlotId + S3].Output[0] + m_Slot[SlotId + S4].Output[0];
+		Output = m_OPN.Slot[SlotId + S2].Output[0] + m_OPN.Slot[SlotId + S3].Output[0] + m_OPN.Slot[SlotId + S4].Output[0];
 		break;
 
 	case 7: /* S1 + S2 + S3 + S4 */
-		Output = m_Slot[SlotId + S1].Output[0] + m_Slot[SlotId + S2].Output[0] + m_Slot[SlotId + S3].Output[0] + m_Slot[SlotId + S4].Output[0];
+		Output = m_OPN.Slot[SlotId + S1].Output[0] + m_OPN.Slot[SlotId + S2].Output[0] + m_OPN.Slot[SlotId + S3].Output[0] + m_OPN.Slot[SlotId + S4].Output[0];
 		break;
 	}
 
-	/* Limiter (signed 14-bit) */
-	m_Channel[ChannelId].Output = std::clamp<int16_t>(Output, -8192, 8191);
+	/* Limit (14-bit) and mix channel output */
+	m_OPN.Out += std::clamp<int16_t>(Output, -8192, 8191);
 }
 
 int16_t YM2203::GetModulation(uint32_t Cycle)
 {
-	auto& Chan = m_Channel[Cycle >> 2];
+	auto& Chan = m_OPN.Channel[Cycle >> 2];
 
 	uint32_t SlotId = Cycle & 0x03;
 	uint32_t ChanId = Cycle & ~0x03;
@@ -919,66 +965,66 @@ int16_t YM2203::GetModulation(uint32_t Cycle)
 	case 0x18: /* Algo: 6 - S1 */
 	case 0x1C: /* Algo: 7 - S1 */
 		if (Chan.FB) /* Slot 1 self-feedback modulation (10-bit) */
-			return (m_Slot[Cycle].Output[0] + m_Slot[Cycle].Output[1]) >> (10 - Chan.FB);
+			return (m_OPN.Slot[Cycle].Output[0] + m_OPN.Slot[Cycle].Output[1]) >> (10 - Chan.FB);
 		else
 			return 0;
 
 	case 0x01: /* Algo: 0 - S2 */
-		return m_Slot[ChanId + S1].Output[0] >> 1;
+		return m_OPN.Slot[ChanId + S1].Output[0] >> 1;
 
 	case 0x02: /* Algo: 0 - S3 */
-		return m_Slot[ChanId + S2].Output[0] >> 1;
+		return m_OPN.Slot[ChanId + S2].Output[0] >> 1;
 
 	case 0x03: /* Algo: 0 - S4 */
-		return m_Slot[ChanId + S3].Output[0] >> 1;
+		return m_OPN.Slot[ChanId + S3].Output[0] >> 1;
 
 	case 0x05: /* Algo: 1 - S2 */
 		return 0;
 
 	case 0x06: /* Algo: 1 - S3 */
-		return (m_Slot[ChanId + S1].Output[1] + m_Slot[ChanId + S2].Output[0]) >> 1;
+		return (m_OPN.Slot[ChanId + S1].Output[1] + m_OPN.Slot[ChanId + S2].Output[0]) >> 1;
 
 	case 0x07: /* Algo: 1 - S4 */
-		return m_Slot[ChanId + S3].Output[0] >> 1;
+		return m_OPN.Slot[ChanId + S3].Output[0] >> 1;
 
 	case 0x09: /* Algo: 2 - S2 */
 		return 0;
 
 	case 0x0A: /* Algo: 2 - S3 */
-		return m_Slot[ChanId + S2].Output[0] >> 1;
+		return m_OPN.Slot[ChanId + S2].Output[0] >> 1;
 
 	case 0x0B: /* Algo: 2 - S4 */
-		return (m_Slot[ChanId + S1].Output[0] + m_Slot[ChanId + S3].Output[0]) >> 1;
+		return (m_OPN.Slot[ChanId + S1].Output[0] + m_OPN.Slot[ChanId + S3].Output[0]) >> 1;
 
 	case 0x0D: /* Algo: 3 - S2 */
-		return m_Slot[ChanId + S1].Output[0] >> 1;
+		return m_OPN.Slot[ChanId + S1].Output[0] >> 1;
 
 	case 0x0E: /* Algo: 3 - S3 */
 		return 0;
 
 	case 0x0F: /* Algo: 3 - S4 */
-		return (m_Slot[ChanId + S2].Output[1] + m_Slot[ChanId + S3].Output[0]) >> 1;
+		return (m_OPN.Slot[ChanId + S2].Output[1] + m_OPN.Slot[ChanId + S3].Output[0]) >> 1;
 
 	case 0x11: /* Algo: 4 - S2 */
-		return m_Slot[ChanId + S1].Output[0] >> 1;
+		return m_OPN.Slot[ChanId + S1].Output[0] >> 1;
 
 	case 0x12: /* Algo: 4 - S3 */
 		return 0;
 
 	case 0x13: /* Algo: 4 - S4 */
-		return m_Slot[ChanId + S3].Output[0] >> 1;
+		return m_OPN.Slot[ChanId + S3].Output[0] >> 1;
 
 	case 0x15: /* Algo: 5 - S2 */
-		return m_Slot[ChanId + S1].Output[0] >> 1;
+		return m_OPN.Slot[ChanId + S1].Output[0] >> 1;
 
 	case 0x16: /* Algo: 5 - S3 */
-		return m_Slot[ChanId + S1].Output[1] >> 1;
+		return m_OPN.Slot[ChanId + S1].Output[1] >> 1;
 
 	case 0x17: /* Algo: 5 - S4 */
-		return m_Slot[ChanId + S1].Output[0] >> 1;
+		return m_OPN.Slot[ChanId + S1].Output[0] >> 1;
 
 	case 0x19: /* Algo: 6 - S2 */
-		return m_Slot[ChanId + S1].Output[0] >> 1;
+		return m_OPN.Slot[ChanId + S1].Output[0] >> 1;
 
 	case 0x1A: /* Algo: 6 - S3 */
 	case 0x1B: /* Algo: 6 - S4 */
@@ -1015,7 +1061,7 @@ uint8_t YM2203::CalculateRate(uint8_t Rate, uint8_t KeyCode, uint8_t KeyScale)
 
 void YM2203::ProcessKeyEvent(uint32_t SlotId)
 {
-	auto& Slot = m_Slot[SlotId];
+	auto& Slot = m_OPN.Slot[SlotId];
 
 	/* Get latched key on/off state */
 	uint32_t NewState = (Slot.KeyLatch | Slot.CsmKeyLatch);
@@ -1057,7 +1103,7 @@ void YM2203::ProcessKeyEvent(uint32_t SlotId)
 
 void YM2203::StartEnvelope(uint32_t SlotId)
 {
-	auto& Slot = m_Slot[SlotId];
+	auto& Slot = m_OPN.Slot[SlotId];
 
 	/* Move envelope to attack phase */
 	Slot.EgPhase = ADSR::Attack;
@@ -1072,35 +1118,35 @@ void YM2203::StartEnvelope(uint32_t SlotId)
 
 void YM2203::UpdateTimers()
 {
-	if (m_TimerALoad)
+	if (m_OPN.TimerA.Load)
 	{
-		if (--m_TimerACount == 0)
+		if (--m_OPN.TimerA.Counter == 0)
 		{
-			m_TimerACount = 1024 - m_TimerA;
+			m_OPN.TimerA.Counter = 1024 - m_OPN.TimerA.Period;
 
 			/* Overflow flag enabled */
-			if (m_TimerAEnable) m_Status |= TIMER_A_OVERFLOW;
+			if (m_OPN.TimerA.Enable) SetStatusFlags(FLAG_TIMERA);
 
 			/* CSM Key On */
-			if (m_CsmMode)
+			if (m_OPN.ModeCSM)
 			{
 				/* CSM Key-On all channel 3 slots */
-				m_Slot[8 + S1].CsmKeyLatch = 1;
-				m_Slot[8 + S2].CsmKeyLatch = 1;
-				m_Slot[8 + S3].CsmKeyLatch = 1;
-				m_Slot[8 + S4].CsmKeyLatch = 1;
+				m_OPN.Slot[8 + S1].CsmKeyLatch = 1;
+				m_OPN.Slot[8 + S2].CsmKeyLatch = 1;
+				m_OPN.Slot[8 + S3].CsmKeyLatch = 1;
+				m_OPN.Slot[8 + S4].CsmKeyLatch = 1;
 			}
 		}
 	}
 
-	if (m_TimerBLoad)
+	if (m_OPN.TimerB.Load)
 	{
-		if (--m_TimerBCount == 0)
+		if (--m_OPN.TimerB.Counter == 0)
 		{
-			m_TimerBCount = (256 - m_TimerB) << 4;
+			m_OPN.TimerB.Counter = (256 - m_OPN.TimerB.Period) << 4;
 
 			/* Overflow flag enabled */
-			if (m_TimerBEnable) m_Status |= TIMER_B_OVERFLOW;
+			if (m_OPN.TimerB.Enable) SetStatusFlags(FLAG_TIMERB);
 		}
 	}
 }
