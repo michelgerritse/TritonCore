@@ -44,10 +44,38 @@ public:
 	void			CopyToMemoryIndirect(uint32_t MemoryID, size_t Offset, uint8_t* Data, size_t Size);
 
 private:
+
+	/* OPNB data type */
+	struct opnb_t
+	{
+		YM::OPN::operator_t	Slot[16];
+		YM::OPN::channel_t	Channel[4];
+		YM::OPN::timer_t	TimerA;
+		YM::OPN::timer_t	TimerB;
+		YM::OPN::lfo_t		LFO;
+
+		uint32_t	FnumLatch;			/* Fnum latch (3-bit) */
+		uint32_t	FnumLatch3CH;		/* Fnum latch 3CH (3-bit) */
+		uint32_t	BlockLatch;			/* Block latch (3-bit) */
+		uint32_t	BlockLatch3CH;		/* Block latch 3CH (3-bit) */
+		uint32_t	Fnum3CH[3];			/* 3CH Frequency Nr. (11-bit) */
+		uint32_t	Block3CH[3];		/* 3CH Block (3-bit) */
+		uint32_t	KeyCode3CH[3];		/* 3CH Key code (5-bit) */
+		uint32_t	EgCounter;			/* EG counter (12-bit) */
+		uint32_t	EgClock;			/* EG clock (/3 divisor) */
+		uint32_t	Mode3CH;			/* 3CH Mode enable flag */
+		uint32_t	ModeCSM;			/* CSM Mode enable flag */
+		uint8_t		Status;				/* Status register (8-bit) */
+		uint8_t		FlagCtrl;			/* Flag control register (8-bit) */
+		uint8_t		IrqEnable;			/* IRQ enable flags */
+		int16_t		OutL;				/* Accumulator ouput (L) */
+		int16_t		OutR;				/* Accumulator ouput (R) */
+	};
+
 	uint8_t				m_AddressLatch;		/* Address latch (8-bit) */
 
 	AY::ssg_t			m_SSG;				/* SSG unit */
-	YM::OPN::opnb_t		m_OPN;				/* OPNB unit */
+	opnb_t				m_OPN;				/* OPNB unit */
 	YM::adpcma_t		m_ADPCMA;			/* ADPCM-A unit */
 	YM::adpcmb_t		m_ADPCMB;			/* ADPCM-B unit */
 
@@ -77,6 +105,7 @@ private:
 	void		UpdatePhaseGenerator(uint32_t SlotId);
 	void		UpdateEnvelopeGenerator(uint32_t SlotId);
 	void		UpdateOperatorUnit(uint32_t SlotId);
+	void		ClearAccumulator();
 	void		UpdateAccumulator(uint32_t SlotId);
 	void		UpdateLFO();
 	void		UpdateTimers();

@@ -244,7 +244,7 @@ bool YM2608::EnumAudioOutputs(uint32_t OutputNr, AUDIO_OUTPUT_DESC& Desc)
 		Desc.Channels = 1;
 		Desc.ChannelMask = SPEAKER_FRONT_CENTER;
 		Desc.Description = L"Analog Out";
-		break;
+		return true;
 
 	case AudioOut::OPN: /* FM */
 		Desc.SampleRate = m_ClockSpeed / (24 * m_PreScalerOPN);
@@ -252,13 +252,13 @@ bool YM2608::EnumAudioOutputs(uint32_t OutputNr, AUDIO_OUTPUT_DESC& Desc)
 		Desc.Channels = 2;
 		Desc.ChannelMask = SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT;
 		Desc.Description = L"FM + ADPCM";
-		break;
+		return true;
 
 	default:
 		return false;
 	}
 
-	return true;
+	return false;
 }
 
 void YM2608::SetClockSpeed(uint32_t ClockSpeed)
@@ -707,9 +707,9 @@ void YM2608::WriteMode(uint8_t Address, uint8_t Data)
 		/* 3CH / CSM mode */
 		m_OPN.Mode3CH = ((Data & 0xC0) != 0x00) ? 1 : 0;
 		m_OPN.ModeCSM = ((Data & 0xC0) == 0x80) ? 1 : 0;
-	}
 		break;
-
+	}
+		
 	case 0x28: /* Key On/Off */
 	{
 		if ((Data & 0x03) == 0x03) break; /* Invalid channel */
@@ -844,42 +844,46 @@ void YM2608::WriteFM(uint8_t Address, uint8_t Port, uint8_t Data)
 		switch (Address & 0xFC)
 		{
 		case 0xA0: /* F-Num 1 */
-			Chan.FNum = ((m_OPN.FNumLatch & 0x07) << 8) | Data;
-			Chan.Block = m_OPN.FNumLatch >> 3;
+			Chan.FNum = m_OPN.FnumLatch | Data;
+			Chan.Block = m_OPN.BlockLatch;
 			Chan.KeyCode = (Chan.Block << 2) | YM::OPN::Note[Chan.FNum >> 7];
 			break;
 
 		case 0xA4: /* F-Num 2 / Block Latch */
-			m_OPN.FNumLatch = Data & 0x3F;
+			m_OPN.FnumLatch = (Data & 0x07) << 8;
+			m_OPN.BlockLatch = (Data >> 3) & 0x07;
 			break;
-
 		case 0xA8: /* 3 Ch-3 F-Num  */
 			if (Port == 0)
 			{
 				/* Slot order for 3CH mode */
 				if (Address == 0xA9)
 				{
-					m_OPN.FNum3CH[S1] = ((m_OPN.FNumLatch3CH & 0x07) << 8) | Data;
-					m_OPN.Block3CH[S1] = m_OPN.FNumLatch3CH >> 3;
-					m_OPN.KeyCode3CH[S1] = (m_OPN.Block3CH[S1] << 2) | YM::OPN::Note[m_OPN.FNum3CH[S1] >> 7];
+					m_OPN.Fnum3CH[S1] = m_OPN.FnumLatch3CH | Data;
+					m_OPN.Block3CH[S1] = m_OPN.BlockLatch3CH;
+					m_OPN.KeyCode3CH[S1] = (m_OPN.Block3CH[S1] << 2) | YM::OPN::Note[m_OPN.Fnum3CH[S1] >> 7];
 				}
 				else if (Address == 0xA8)
 				{
-					m_OPN.FNum3CH[S3] = ((m_OPN.FNumLatch3CH & 0x07) << 8) | Data;
-					m_OPN.Block3CH[S3] = m_OPN.FNumLatch3CH >> 3;
-					m_OPN.KeyCode3CH[S3] = (m_OPN.Block3CH[S3] << 2) | YM::OPN::Note[m_OPN.FNum3CH[S3] >> 7];
+					m_OPN.Fnum3CH[S3] = m_OPN.FnumLatch3CH | Data;
+					m_OPN.Block3CH[S3] = m_OPN.BlockLatch3CH;
+					m_OPN.KeyCode3CH[S3] = (m_OPN.Block3CH[S3] << 2) | YM::OPN::Note[m_OPN.Fnum3CH[S3] >> 7];
 				}
 				else /* 0xAA */
 				{
-					m_OPN.FNum3CH[S2] = ((m_OPN.FNumLatch3CH & 0x07) << 8) | Data;
-					m_OPN.Block3CH[S2] = m_OPN.FNumLatch3CH >> 3;
-					m_OPN.KeyCode3CH[S2] = (m_OPN.Block3CH[S2] << 2) | YM::OPN::Note[m_OPN.FNum3CH[S2] >> 7];
+					m_OPN.Fnum3CH[S2] = m_OPN.FnumLatch3CH | Data;
+					m_OPN.Block3CH[S2] = m_OPN.BlockLatch3CH;
+					m_OPN.KeyCode3CH[S2] = (m_OPN.Block3CH[S2] << 2) | YM::OPN::Note[m_OPN.Fnum3CH[S2] >> 7];
 				}
 			}
 			break;
 
 		case 0xAC: /* 3 Ch-3 F-Num / Block Latch */
-			if (Port == 0) m_OPN.FNumLatch3CH = Data & 0x3F;
+			if (Port == 0)
+			{
+				m_OPN.FnumLatch3CH = (Data & 0x07) << 8;
+				m_OPN.BlockLatch3CH = (Data >> 3) & 0x07;
+			}
 			break;
 
 		case 0xB0: /* Feedback / Connection */
@@ -1035,14 +1039,10 @@ void YM2608::UpdateOPN(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuff
 	uint32_t Samples = TotalCycles / (24 * m_PreScalerOPN);
 	m_CyclesToDoOPN = TotalCycles % (24 * m_PreScalerOPN);
 
-	int32_t OutL;
-	int32_t OutR;
-
 	while (Samples-- != 0)
 	{
-		OutL = 0;
-		OutR = 0;
-
+		ClearAccumulator();
+		
 		/* Update Timer A, Timer B and LFO */
 		UpdateTimers();
 		UpdateLFO();
@@ -1066,25 +1066,11 @@ void YM2608::UpdateOPN(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuff
 		UpdateAccumulator(CH2);
 		UpdateAccumulator(CH3);
 
-		OutL += (m_OPN.Channel[CH1].Output & m_OPN.Channel[CH1].MaskL);
-		OutR += (m_OPN.Channel[CH1].Output & m_OPN.Channel[CH1].MaskR);
-		OutL += (m_OPN.Channel[CH2].Output & m_OPN.Channel[CH2].MaskL);
-		OutR += (m_OPN.Channel[CH2].Output & m_OPN.Channel[CH2].MaskR);
-		OutL += (m_OPN.Channel[CH3].Output & m_OPN.Channel[CH3].MaskL);
-		OutR += (m_OPN.Channel[CH3].Output & m_OPN.Channel[CH3].MaskR);
-
 		if (m_OPN.ModeSCH) /* 6-channel mode enabled */
 		{
 			UpdateAccumulator(CH4);
 			UpdateAccumulator(CH5);
 			UpdateAccumulator(CH6);
-
-			OutL += (m_OPN.Channel[CH4].Output & m_OPN.Channel[CH4].MaskL);
-			OutR += (m_OPN.Channel[CH4].Output & m_OPN.Channel[CH4].MaskR);
-			OutL += (m_OPN.Channel[CH5].Output & m_OPN.Channel[CH5].MaskL);
-			OutR += (m_OPN.Channel[CH5].Output & m_OPN.Channel[CH5].MaskR);
-			OutL += (m_OPN.Channel[CH6].Output & m_OPN.Channel[CH6].MaskL);
-			OutR += (m_OPN.Channel[CH6].Output & m_OPN.Channel[CH6].MaskR);
 		}
 
 		/* Update ADPCM-A clock */
@@ -1106,8 +1092,8 @@ void YM2608::UpdateOPN(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuff
 		UpdateADPCMB();
 
 		/* Mix FM, ADPCM-A and ADPCM-B */
-		OutL += m_ADPCMB.OutL + m_ADPCMA.OutL;
-		OutR += m_ADPCMB.OutR + m_ADPCMA.OutR;
+		int16_t OutL = m_OPN.OutL + m_ADPCMA.OutL + m_ADPCMB.OutL;
+		int16_t OutR = m_OPN.OutR + m_ADPCMA.OutR + m_ADPCMB.OutR;
 
 		/* 16-bit output */
 		OutBuffer[AudioOut::OPN]->WriteSampleS16(OutL);
@@ -1258,7 +1244,7 @@ void YM2608::PrepareSlot(uint32_t SlotId)
 		/* Get Block/FNum for channel 3: S1-S2-S3 */
 		if ((ChannelId == CH3) && (i != S4))
 		{
-			Slot.FNum = m_OPN.FNum3CH[i];
+			Slot.FNum = m_OPN.Fnum3CH[i];
 			Slot.Block = m_OPN.Block3CH[i];
 			Slot.KeyCode = m_OPN.KeyCode3CH[i];
 		}
@@ -1428,6 +1414,12 @@ void YM2608::UpdateOperatorUnit(uint32_t SlotId)
 	Slot.Output[0] = Output;
 }
 
+void YM2608::ClearAccumulator()
+{
+	m_OPN.OutL = 0;
+	m_OPN.OutR = 0;
+}
+
 void YM2608::UpdateAccumulator(uint32_t ChannelId)
 {
 	int16_t Output = 0;
@@ -1457,8 +1449,12 @@ void YM2608::UpdateAccumulator(uint32_t ChannelId)
 		break;
 	}
 
-	/* Limiter (signed 14 to 13-bit) */
-	m_OPN.Channel[ChannelId].Output = std::clamp<int16_t>(Output, -8192, 8191) >> 1;
+	/* Limit (signed 14 to 13-bit) */
+	Output = std::clamp<int16_t>(Output, -8192, 8191) >> 1;
+
+	/* Mix channel output */
+	m_OPN.OutL += Output & m_OPN.Channel[ChannelId].MaskL;
+	m_OPN.OutR += Output & m_OPN.Channel[ChannelId].MaskR;
 }
 
 int16_t YM2608::GetModulation(uint32_t Cycle)

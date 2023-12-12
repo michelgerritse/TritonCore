@@ -308,7 +308,6 @@ namespace OPN /* FM Operator Type-N */
 		uint32_t	FB;				/* Feedback (3-bit) */
 		uint32_t	MaskL;			/* Channel L output mask */
 		uint32_t	MaskR;			/* Channel R output mask */
-		int16_t		Output;			/* Channel output (14-bit) */
 	};
 
 	/* Timer data type */
@@ -327,59 +326,6 @@ namespace OPN /* FM Operator Type-N */
 		uint32_t	Period;			/* Period */
 		uint32_t	Counter;		/* Counter */
 		uint32_t	Step;			/* Step counter (7-bit) */
-	};
-	
-	/* OPNA data type */
-	struct opna_t
-	{
-		operator_t	Slot[24];
-		channel_t	Channel[6];
-		timer_t		TimerA;
-		timer_t		TimerB;
-		lfo_t		LFO;
-
-		uint8_t		FNumLatch;			/* Fnum2 / Block latch (6-bit) */
-		uint8_t		FNumLatch3CH;		/* 3CH Fnum2 / Block latch mode (6-bit) */
-		uint32_t	FNum3CH[3];			/* 3CH Frequency Nr. (11+1-bit) */
-		uint32_t	Block3CH[3];		/* 3CH Block (3-bit) */
-		uint32_t	KeyCode3CH[3];		/* 3CH Key code (5-bit) */
-
-		uint32_t	EgCounter;			/* EG counter (12-bit) */
-		uint32_t	EgClock;			/* EG clock (/3 divisor) */
-
-		uint32_t	Mode3CH;			/* 3CH Mode enable flag */
-		uint32_t	ModeCSM;			/* CSM Mode enable flag */
-		uint32_t	ModeSCH;			/* SCH Mode enable flag */
-		
-		uint8_t		Status;				/* Status register (8-bit) */
-		uint8_t		FlagCtrl;			/* Flag control register (8-bit) */
-		uint8_t		IrqEnable;			/* IRQ enable flags */
-	};
-
-	/* OPNB data type */
-	struct opnb_t
-	{
-		operator_t	Slot[16];
-		channel_t	Channel[4];
-		timer_t		TimerA;
-		timer_t		TimerB;
-		lfo_t		LFO;
-
-		uint8_t		FNumLatch;			/* Fnum2 / Block latch (6-bit) */
-		uint8_t		FNumLatch3CH;		/* 3CH Fnum2 / Block latch mode (6-bit) */
-		uint32_t	FNum3CH[3];			/* 3CH Frequency Nr. (11+1-bit) */
-		uint32_t	Block3CH[3];		/* 3CH Block (3-bit) */
-		uint32_t	KeyCode3CH[3];		/* 3CH Key code (5-bit) */
-
-		uint32_t	EgCounter;			/* EG counter (12-bit) */
-		uint32_t	EgClock;			/* EG clock (/3 divisor) */
-
-		uint32_t	Mode3CH;			/* 3CH Mode enable flag */
-		uint32_t	ModeCSM;			/* CSM Mode enable flag */
-
-		uint8_t		Status;				/* Status register (8-bit) */
-		uint8_t		FlagCtrl;			/* Flag control register (8-bit) */
-		uint8_t		IrqEnable;			/* IRQ enable flags */
 	};
 	
 	static uint32_t LfoAmTable[128][4];
