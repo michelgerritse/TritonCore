@@ -20,19 +20,10 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\NullSound.h">
       <Filter>Devices\Sound</Filter>
     </ClInclude>
-    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\SN76489.h">
-      <Filter>Devices\Sound</Filter>
-    </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)Interfaces\IMemoryAccess.h">
       <Filter>Interfaces</Filter>
     </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\ADPCM.h">
-      <Filter>Devices\Sound</Filter>
-    </ClInclude>
-    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\AY8910.h">
-      <Filter>Devices\Sound</Filter>
-    </ClInclude>
-    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\AY.h">
       <Filter>Devices\Sound</Filter>
     </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YM2203.h">
@@ -83,6 +74,21 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YM2610.h">
       <Filter>Devices\Sound\Yamaha\OPN</Filter>
     </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YM3526.h">
+      <Filter>Devices\Sound\Yamaha\OPL</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\SN76489.h">
+      <Filter>Devices\Sound\Texas Instruments</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\AY.h">
+      <Filter>Devices\Sound\General Instrument</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\AY8910.h">
+      <Filter>Devices\Sound\General Instrument</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YM3812.h">
+      <Filter>Devices\Sound\Yamaha\OPL</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Interfaces">
@@ -121,12 +127,15 @@
     <Filter Include="Devices\Sound\Oki">
       <UniqueIdentifier>{dfe1414b-050f-454e-ab4e-b5d415154aa8}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Devices\Sound\Texas Instruments">
+      <UniqueIdentifier>{8afcf0c1-fd8c-4ed1-90b3-0b7e14fca9ca}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Devices\Sound\General Instrument">
+      <UniqueIdentifier>{e9132e83-027a-4f4f-bc6f-7b0fe3fe387d}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\ADPCM.cpp">
-      <Filter>Devices\Sound</Filter>
-    </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\AY8910.cpp">
       <Filter>Devices\Sound</Filter>
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\YM2203.cpp">
@@ -170,6 +179,15 @@
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\YM2610.cpp">
       <Filter>Devices\Sound\Yamaha\OPN</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\YM3526.cpp">
+      <Filter>Devices\Sound\Yamaha\OPL</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\AY8910.cpp">
+      <Filter>Devices\Sound\General Instrument</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\YM3812.cpp">
+      <Filter>Devices\Sound\Yamaha\OPL</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
