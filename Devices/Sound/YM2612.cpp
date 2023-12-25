@@ -84,8 +84,10 @@ YM2612::YM2612(uint32_t ClockSpeed) :
 
 		for (uint16_t i = 0; i < 512; i++)
 		{
-			//TODO: This needs validation... will need real voltage measurements
+			/*
+			TODO: This needs validation... will need real voltage measurements
 			https://docs.google.com/document/d/1ST9GbFfPnIjLT5loytFCm3pB0kWQ1Oe34DCBBV8saY8/pub
+			*/
 
 			int16_t DacOut = i & 0xFF;
 
