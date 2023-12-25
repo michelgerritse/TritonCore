@@ -14,6 +14,8 @@ The following sound devices are emulated:
 - Yamaha YM2608
 - Yamaha YM2610(B)
 - Yamaha YM2612
+- Yamaha YM3526
+- Yamaha YM3812
 - Yamaha YMF278B (PCM only at this moment)
 - Yamaha YMW258F
 - Yamaha YMZ280B
