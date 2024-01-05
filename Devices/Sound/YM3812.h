@@ -62,6 +62,13 @@ private:
 		uint32_t	LfoPmShift;		/* LFO-PM depth selector */
 
 		uint32_t	WaveSelectEnable; /* Wave select enable flag */
+
+		uint32_t	NoiseLFSR;		/* Noise shift register (23-bit) */
+		uint32_t	NoiseOut;		/* Noise output (1-bit) */
+
+		uint8_t		PhaseHH8;		/* High hat phase bit (b8) */
+		uint8_t		PhaseHH;		/* High hat phase bits (b7, b3, b2) */
+		uint8_t		PhaseTC;		/* Top cymbal phase bits (b5, b3) */
 	};
 
 	uint32_t	m_ClockSpeed;
@@ -70,13 +77,14 @@ private:
 	uint8_t		m_AddressLatch;		/* Address latch (8-bit) */
 	opl2_t		m_OPL;				/* OPL unit */
 
-	void		WriteRegister(uint8_t Address, uint8_t Data);
+	void		WriteRegisterArray(uint8_t Address, uint8_t Data);
 	void		UpdateTimers();
 	void		UpdatePhaseGenerator(uint32_t SlotId);
 	void		UpdateEnvelopeGenerator(uint32_t SlotId);
 	void		UpdateOperatorUnit(uint32_t SlotId);
-	void		ClearAccumulator();
-	void		UpdateAccumulator(uint32_t SlotId);
+	void		UpdateNoiseGenerator();
+	void		ClearOutput();
+	void		GenerateOutput(uint32_t ChannelId);
 	int16_t		GetModulation(uint32_t SlotId);
 };
 

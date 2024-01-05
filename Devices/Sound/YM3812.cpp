@@ -15,6 +15,7 @@ See LICENSE.txt in the root directory of this source tree.
 
 /*
 	Yamaha YM3812 (OPL2)
+
 */
 
 #define FLAG_TIMER2	0x20 /* Timer 2 overflow */
@@ -30,21 +31,14 @@ enum AudioOut
 /* Slot naming */
 enum SlotName
 {
-	S1 = 0, /* Carrier */
-	S2		/* Modulator */
+	S1 = 0,	/* Modulator */
+	S2		/* Carrier   */
 };
 
 /* Channel naming */
 enum ChannelName
 {
 	CH1 = 0, CH2, CH3, CH4, CH5, CH6, CH7, CH8, CH9
-};
-
-static const uint32_t SlotToChannel[18] =
-{
-	CH1, CH2, CH3, CH1, CH2, CH3,
-	CH4, CH5, CH6, CH4, CH5, CH6,
-	CH7, CH8, CH9, CH7, CH8, CH9
 };
 
 /* Envelope phases */
@@ -54,6 +48,17 @@ enum ADSR : uint32_t
 	Decay,
 	Sustain,
 	Release
+};
+
+/* Drum instruments */
+enum Rhythm : uint32_t
+{
+	BD1 = 12,	/* Bass drum 1 (CH7 - S1) */
+	BD2 = 13,	/* Bass drum 2 (CH7 - S2) */
+	HH  = 14,	/* High hat    (CH8 - S1) */
+	SD  = 15,	/* Snare drum  (CH8 - S2) */
+	TOM = 16,	/* Tom tom     (CH9 - S1) */
+	TC  = 17	/* Top cymbal  (CH9 - S2) */
 };
 
 YM3812::YM3812(uint32_t ClockSpeed):
@@ -83,6 +88,8 @@ void YM3812::Reset(ResetType Type)
 
 	m_OPL.LfoAmShift = 4; /* 1.0dB */
 	m_OPL.LfoPmShift = 1; /* 7 cents */
+
+	m_OPL.NoiseLFSR = 1 << 22;
 
 	/* Default operator register state */
 	for (auto& Slot : m_OPL.Slot)
@@ -156,19 +163,26 @@ void YM3812::Write(uint32_t Address, uint32_t Data)
 	}
 	else /* Data write mode */
 	{
-		WriteRegister(m_AddressLatch, Data);
+		WriteRegisterArray(m_AddressLatch, Data);
 	}
 }
 
-void YM3812::WriteRegister(uint8_t Address, uint8_t Data)
+void YM3812::WriteRegisterArray(uint8_t Address, uint8_t Data)
 {
-	/* Address to slot mapping: */
+	/* Address to slot mapping */
 	static const int32_t SlotMap[32] =
 	{
-		 0,  1,  2,  3,  4,  5, -1, -1,
-		 6,  7,  8,  9, 10, 11, -1, -1,
-		12, 13, 14, 15, 16, 17, -1, -1,
+		 0,  2,  4,  1,  3,  5, -1, -1,
+		 6,  8, 10,  7,  9, 11, -1, -1,
+		12, 14, 16, 13, 15, 17, -1, -1,
 		-1, -1, -1, -1, -1, -1, -1, -1
+	};
+
+	/* Address to channel mapping */
+	static const int32_t ChannelMap[16] =
+	{
+		 CH1, CH2, CH3, CH4, CH5, CH6, CH7, CH8,
+		 CH9,  -1,  -1,  -1,  -1,  -1,  -1,  -1
 	};
 
 	switch (Address & 0xF0)
@@ -223,7 +237,6 @@ void YM3812::WriteRegister(uint8_t Address, uint8_t Data)
 			break;
 
 		default: /* Not used */
-			assert(false);
 			break;
 		}
 		break;
@@ -283,7 +296,8 @@ void YM3812::WriteRegister(uint8_t Address, uint8_t Data)
 
 	case 0xA0: /* F-Number (L) */
 	{
-		auto& Channel = m_OPL.Channel[(Address & 0x0F) % 9]; /* Keeps the compiler happy */
+		int32_t ChannelId = ChannelMap[Address & 0x0F]; if (ChannelId == -1) return;
+		auto& Channel = m_OPL.Channel[ChannelId];
 		
 		Channel.FNum &= 0x300;
 		Channel.FNum |= Data;
@@ -298,17 +312,20 @@ void YM3812::WriteRegister(uint8_t Address, uint8_t Data)
 			m_OPL.LfoPmShift = (Data & 0x40) ? 0 : 1; /* Depth = 7 or 14 cents */
 			m_OPL.RHY = (Data >> 5) & 0x01;
 
-			//if (m_OPL.RHY) /* Key on drum instruments */
-			//{
-			//	if (Data & 0x10); /* BD */
-			//	if (Data & 0x08); /* SD */
-			//	if (Data & 0x04); /* TOM */
-			//	if (Data & 0x02); /* TC */
-			//	if (Data & 0x01); /* HH */
+			if (m_OPL.RHY) /* Key on /off drum instruments */
+			{
+				m_OPL.Slot[Rhythm::BD1].DrumLatch = (Data >> 4) & 0x01;
+				m_OPL.Slot[Rhythm::BD2].DrumLatch = (Data >> 4) & 0x01;
+				m_OPL.Slot[Rhythm::SD ].DrumLatch = (Data >> 3) & 0x01;
+				m_OPL.Slot[Rhythm::TOM].DrumLatch = (Data >> 2) & 0x01;
+				m_OPL.Slot[Rhythm::TC ].DrumLatch = (Data >> 1) & 0x01;
+				m_OPL.Slot[Rhythm::HH ].DrumLatch = (Data >> 0) & 0x01;
+			}
 		}
 		else
 		{
-			auto& Channel = m_OPL.Channel[(Address & 0x0F) % 9]; /* Keeps the compiler happy */
+			int32_t ChannelId = ChannelMap[Address & 0x0F]; if (ChannelId == -1) return;
+			auto& Channel = m_OPL.Channel[ChannelId];
 			
 			Channel.KeyLatch = (Data >> 5) & 0x01;
 			Channel.Block = (Data >> 2) & 0x07;
@@ -325,7 +342,8 @@ void YM3812::WriteRegister(uint8_t Address, uint8_t Data)
 
 	case 0xC0: /* Feedback / Connection */
 	{
-		auto& Channel = m_OPL.Channel[(Address & 0x0F) % 9]; /* Keeps the compiler happy */
+		int32_t ChannelId = ChannelMap[Address & 0x0F]; if (ChannelId == -1) return;
+		auto& Channel = m_OPL.Channel[ChannelId];
 		
 		Channel.FB = (Data >> 1) & 0x07;
 		Channel.Algo = (Data >> 0) & 0x01;
@@ -347,15 +365,14 @@ void YM3812::WriteRegister(uint8_t Address, uint8_t Data)
 	}
 
 	default: /* Not used */
-		assert(false);
 		break;
 	}
 }
 
 void YM3812::UpdateTimers()
 {
-	/* Update global timer (13-bit) */
-	m_OPL.Timer = (m_OPL.Timer + 1) & 0x1FFF;
+	/* Update global timer */
+	m_OPL.Timer++;
 
 	/* Update LFO-AM (tremolo) */
 	if ((m_OPL.Timer & YM::OPL::LfoAmPeriod) == 0)
@@ -393,7 +410,7 @@ void YM3812::UpdateTimers()
 				/* CSM Key On */
 				if (m_OPL.CSM)
 				{
-					for (auto& Slot : m_OPL.Slot) Slot.KeyLatch |= 1;
+					for (auto& Slot : m_OPL.Slot) Slot.CsmLatch |= 1;
 				}
 			}
 		}
@@ -419,8 +436,9 @@ void YM3812::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
 {
 	static const uint32_t SlotOrder[] =
 	{
-		0,  1,  2,  3,  4,  5,  6,  7,  8,
-		9, 10, 11, 12, 13, 14, 15, 16, 17
+		 0,  2,  4,  1,  3,  5,
+		 6,  8, 10,  7,  9, 11,
+		12, 14, 16, 13, 15, 17
 	};
 
 	uint32_t TotalCycles = ClockCycles + m_CyclesToDo;
@@ -429,30 +447,27 @@ void YM3812::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
 
 	while (Samples-- != 0)
 	{
+		ClearOutput();
 		UpdateTimers();
-		ClearAccumulator();
 
 		/* Update slots (operators) */
 		for (auto& SlotId : SlotOrder)
 		{
-			UpdatePhaseGenerator(SlotId);
 			UpdateEnvelopeGenerator(SlotId);
+			UpdatePhaseGenerator(SlotId);
 			UpdateOperatorUnit(SlotId);
+			UpdateNoiseGenerator();
 		}
 
-		UpdateAccumulator(CH1);
-		UpdateAccumulator(CH2);
-		UpdateAccumulator(CH3);
-		UpdateAccumulator(CH4);
-		UpdateAccumulator(CH5);
-		UpdateAccumulator(CH6);
-
-		if (m_OPL.RHY == 0)
-		{
-			UpdateAccumulator(CH7);
-			UpdateAccumulator(CH8);
-			UpdateAccumulator(CH9);
-		}
+		GenerateOutput(CH1);
+		GenerateOutput(CH2);
+		GenerateOutput(CH3);
+		GenerateOutput(CH4);
+		GenerateOutput(CH5);
+		GenerateOutput(CH6);
+		GenerateOutput(CH7);
+		GenerateOutput(CH8);
+		GenerateOutput(CH9);
 
 		/* Limiter (signed 16-bit) */
 		int16_t Out = std::clamp(m_OPL.Out, -32768, 32767);
@@ -464,10 +479,17 @@ void YM3812::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
 
 void YM3812::UpdatePhaseGenerator(uint32_t SlotId)
 {
-	auto& Chan = m_OPL.Channel[SlotToChannel[SlotId]];
+	auto& Chan = m_OPL.Channel[SlotId >> 1];
 	auto& Slot = m_OPL.Slot[SlotId];
 
 	uint32_t FNum = Chan.FNum;
+	
+	/* Reset phase counter */
+	if (Slot.PgReset)
+	{
+		Slot.PgPhase = 0;
+		Slot.PgReset = 0;
+	}
 
 	/* Apply LFO-PM (vibrato) */
 	if (Slot.LfoPmOn != 0)
@@ -520,22 +542,64 @@ void YM3812::UpdatePhaseGenerator(uint32_t SlotId)
 
 	/* Update phase counter (19-bit: 10.9) */
 	Slot.PgPhase += Inc;
+	Slot.PgOutput = Slot.PgPhase >> 9;
+
+	if (m_OPL.RHY)
+	{
+		switch (SlotId)
+		{
+		case Rhythm::HH:
+		{
+			/* Get high hat b8; map it to b1 of the result (b0 of the result is reserved for the noise bit) */
+			m_OPL.PhaseHH8 = (Slot.PgOutput >> 7) & 0x02; /* b8 */
+
+			/* Get high hat b7, b3 and b2; map it to b4, b3, and b2 of the result */
+			m_OPL.PhaseHH  = (Slot.PgOutput >> 3) & 0x10; /* b7 */
+			m_OPL.PhaseHH |= (Slot.PgOutput >> 0) & 0x0C; /* b3 and b2 */
+
+			/* Lookup the phase input bit */
+			uint32_t PhaseIn = YM::OPL::PhaseIn[m_OPL.PhaseHH | m_OPL.PhaseTC];
+
+			/* Lookup the high hat phase output bits */
+			Slot.PgOutput = YM::OPL::PhaseOutHH[(PhaseIn << 1) | m_OPL.NoiseOut];
+			break;
+		}
+
+		case Rhythm::SD:
+			/* Lookup the snare drum phase output bits */
+			Slot.PgOutput = YM::OPL::PhaseOutSD[m_OPL.PhaseHH8 | m_OPL.NoiseOut];
+			break;
+		
+		case Rhythm::TC:
+		{
+			/* Get top cymbal b5 and b3; map it to b1 and b0 of the result */
+			m_OPL.PhaseTC  = (Slot.PgOutput >> 4) & 0x02; /* b5 */
+			m_OPL.PhaseTC |= (Slot.PgOutput >> 3) & 0x01; /* b3 */
+			
+			/* Lookup the phase input bit */
+			uint32_t PhaseIn = YM::OPL::PhaseIn[m_OPL.PhaseHH | m_OPL.PhaseTC];
+
+			/* Calculate the top cymbal phase output bits */
+			Slot.PgOutput = (PhaseIn << 9) | 0x80;
+			break;
+		}
+		}
+	}
 }
 
 void YM3812::UpdateEnvelopeGenerator(uint32_t SlotId)
 {
-	auto& Chan = m_OPL.Channel[SlotToChannel[SlotId]];
+	auto& Chan = m_OPL.Channel[SlotId >> 1];
 	auto& Slot = m_OPL.Slot[SlotId];
 
 	/*-------------------------------------*/
 	/* Step 1: Key On / Off event handling */
 	/*-------------------------------------*/
-	uint32_t NewKeyState = (Chan.KeyLatch | Slot.KeyLatch);
+	uint32_t NewKeyState = (Chan.KeyLatch | Slot.CsmLatch | Slot.DrumLatch);
 	uint32_t EnvelopeStart = 0;
-	uint32_t EnvelopeRun = 1;
 
-	/* Clear CSM / Drum key on flag */
-	Slot.KeyLatch = 0;
+	/* Clear CSM key on flag */
+	Slot.CsmLatch = 0;
 
 	switch ((NewKeyState << 1) | Slot.KeyState)
 	{
@@ -544,13 +608,14 @@ void YM3812::UpdateEnvelopeGenerator(uint32_t SlotId)
 		break;
 
 	case 0x01: /* Key Off */
-		Slot.EgPhase = ADSR::Release;
+		Slot.EgPhase  = ADSR::Release;
 		Slot.KeyState = 0;
 		break;
 
 	case 0x02: /* Key On */
-		Slot.EgPhase = ADSR::Attack;
-		Slot.PgPhase = 0;
+		Slot.EgPhase  = ADSR::Attack;
+		Slot.EgActive = 1;
+		Slot.PgReset  = 1;
 		Slot.KeyState = 1;
 		EnvelopeStart = 1;
 		break;
@@ -568,26 +633,20 @@ void YM3812::UpdateEnvelopeGenerator(uint32_t SlotId)
 		break;
 
 	case ADSR::Decay:
-		EnvelopeRun = (Slot.EgLevel & 0x1F8) ^ 0x1F8;
 		Rate = Slot.EgRate[ADSR::Decay];
 		break;
 
 	case ADSR::Sustain:
-		EnvelopeRun = (Slot.EgLevel & 0x1F8) ^ 0x1F8;
-
 		/* Note: EG-Type selects sustain or release */
 		Rate = Slot.EgRate[ADSR::Sustain + Slot.EgType];
 		break;
 
 	case ADSR::Release:
-		EnvelopeRun = (Slot.EgLevel & 0x1F8) ^ 0x1F8;
 		Rate = Slot.EgRate[ADSR::Release];
 		break;
 	}
 
-	if (EnvelopeRun == 0) Slot.EgLevel = YM::OPL::MaxAttenuation;
-
-	if ((Rate | EnvelopeRun) != 0)
+	if ((Rate != 0) || (Slot.EgActive != 0))
 	{
 		/* Calculate scaled rate: (4 * rate) + scale value */
 		uint32_t ScaledRate = std::min((Rate << 2) + (Chan.KeyCode >> Slot.KeyScaling), 63u);
@@ -619,21 +678,25 @@ void YM3812::UpdateEnvelopeGenerator(uint32_t SlotId)
 					Level += ((~Level * AttnInc) >> 4);
 				}
 
-				if (Level == 0)
-				{
-					Slot.EgPhase = (Slot.SustainLvl != 0) ? ADSR::Decay : ADSR::Sustain;
-				}
+				if (Level == 0) Slot.EgPhase = (Slot.SustainLvl != 0) ? ADSR::Decay : ADSR::Sustain;
 				break;
 
 			case ADSR::Decay:
 				Level += AttnInc;
+				if ((Level >> 4) == Slot.SustainLvl) Slot.EgPhase = ADSR::Sustain;
 
-				if (((uint32_t)Level >> 4) == Slot.SustainLvl) Slot.EgPhase = ADSR::Sustain;
+				/* Envelope off */
+				Slot.EgActive = (Level & YM::OPL::MaxEgLevel) ^ YM::OPL::MaxEgLevel;
+				if (Slot.EgActive == 0) Level = YM::OPL::MaxAttenuation;
 				break;
 
 			case ADSR::Sustain:
 			case ADSR::Release:
 				Level += AttnInc;
+
+				/* Envelope off */
+				Slot.EgActive = (Level & YM::OPL::MaxEgLevel) ^ YM::OPL::MaxEgLevel;
+				if (Slot.EgActive == 0) Level = YM::OPL::MaxAttenuation;
 				break;
 			}
 
@@ -661,7 +724,7 @@ void YM3812::UpdateOperatorUnit(uint32_t SlotId)
 	auto& Slot = m_OPL.Slot[SlotId];
 
 	/* Phase modulation (10-bit) */
-	uint32_t Phase = (Slot.PgPhase >> 9) + GetModulation(SlotId);
+	uint32_t Phase = Slot.PgOutput + GetModulation(SlotId);
 
 	/* Attenuation (4.8 + 4.8 = 5.8 fixed point) */
 	uint32_t Level = Slot.WaveTable[Phase & 0x3FF] + Slot.EgOutput;
@@ -677,35 +740,66 @@ void YM3812::UpdateOperatorUnit(uint32_t SlotId)
 	Slot.Output[0] = Output;
 }
 
-void YM3812::ClearAccumulator()
+void YM3812::UpdateNoiseGenerator()
+{
+	/* ! This needs validation ! */
+	m_OPL.NoiseOut = m_OPL.NoiseLFSR & 1;
+
+	uint32_t Seed = ((m_OPL.NoiseLFSR >> 14) ^ (m_OPL.NoiseLFSR >> 0)) & 1;
+	m_OPL.NoiseLFSR = (m_OPL.NoiseLFSR >> 1) | (Seed << 22);
+}
+
+void YM3812::ClearOutput()
 {
 	m_OPL.Out = 0;
 }
 
-void YM3812::UpdateAccumulator(uint32_t ChannelId)
+void YM3812::GenerateOutput(uint32_t ChannelId)
 {
-	static const uint32_t Operator1[9] =
-	{
-		0, 1, 2, 6, 7, 8, 12, 13, 14
-	};
-
-	static const uint32_t Operator2[9] =
-	{
-		3, 4, 5, 9, 10, 11, 15, 16, 17
-	};
+	/* ! This needs validation ! */
+	auto& Chan = m_OPL.Channel[ChannelId];
 
 	int16_t Output = 0;
 
-	uint32_t SlotId1 = Operator1[ChannelId];
-	uint32_t SlotId2 = Operator2[ChannelId];
-
-	if (m_OPL.Channel[ChannelId].Algo == 0)
+	if (m_OPL.RHY)
 	{
-		Output = m_OPL.Slot[SlotId2].Output[0];
+		switch (ChannelId)
+		{
+		case CH7: /* Bass drum */
+			Output = m_OPL.Slot[BD2].Output[0];
+
+			/* Limit (13-bit) and mix channel output */
+			m_OPL.Out += std::clamp<int16_t>(Output, -4096, 4095) * 2;
+			return;
+
+		case CH8: /* High hat + Snare drum */
+			Output  = m_OPL.Slot[HH].Output[1]; /* Delayed by 1 sample ? */
+			Output += m_OPL.Slot[SD].Output[0];
+
+			/* Limit (13-bit) and mix channel output */
+			m_OPL.Out += std::clamp<int16_t>(Output, -4096, 4095) * 2;
+			return;
+
+		case CH9: /* Tom + Top cymbal */
+			Output  = m_OPL.Slot[TOM].Output[1]; /* Delayed by 1 sample ? */
+			Output += m_OPL.Slot[ TC].Output[0];
+
+			/* Limit (13-bit) and mix channel output */
+			m_OPL.Out += std::clamp<int16_t>(Output, -4096, 4095) * 2;
+			return;
+		}
+	}
+
+	uint32_t SlotBase = ChannelId << 1;
+
+	if (Chan.Algo == 0)
+	{
+		Output = m_OPL.Slot[SlotBase + S2].Output[0];
 	}
 	else
 	{
-		Output = m_OPL.Slot[SlotId1].Output[0] + m_OPL.Slot[SlotId2].Output[0];
+		Output += m_OPL.Slot[SlotBase + S1].Output[1]; /* Delayed by 1 sample */
+		Output += m_OPL.Slot[SlotBase + S2].Output[0];
 	}
 
 	/* Limit (13-bit) and mix channel output */
@@ -714,27 +808,36 @@ void YM3812::UpdateAccumulator(uint32_t ChannelId)
 
 int16_t YM3812::GetModulation(uint32_t SlotId)
 {
-	static const uint32_t IsCarrier[18] =
+	auto& Chan = m_OPL.Channel[SlotId >> 1];
+	
+	if (m_OPL.RHY)
 	{
-		0, 0, 0, 1, 1, 1,
-		0, 0, 0, 1, 1, 1,
-		0, 0, 0, 1, 1, 1,
-	};
+		/* 
+			A special case is needed for the drum instruments that don't have modulation input.
+			The bass drum and tom can be processed normally.
 
-	uint32_t ChannelId = SlotToChannel[SlotId];
-	auto& Chan = m_OPL.Channel[ChannelId];
+			High hat can still do self feedback ?
+		*/
+		
+		switch (SlotId)
+		{
+		//case Rhythm::HH: return 0;
+		case Rhythm::SD: return 0;
+		case Rhythm::TC: return 0;
+		}
+	}
 
-	switch ((Chan.Algo << 1) | IsCarrier[SlotId])
+	switch ((Chan.Algo << 1) | (SlotId & 1))
 	{
 	case 0x00: /* Algo: 0 - Modulator */
 	case 0x02: /* Algo: 1 - Modulator */
-		if (Chan.FB) /* Slot 1 self-feedback modulation (10-bit) */
+		if (Chan.FB) /* Slot 1 self-feedback modulation */
 			return (m_OPL.Slot[SlotId].Output[0] + m_OPL.Slot[SlotId].Output[1]) >> (9 - Chan.FB);
 		else
 			return 0;
 
 	case 0x01: /* Algo: 0 - Carrier */
-		return m_OPL.Slot[SlotId - 3].Output[0];
+		return m_OPL.Slot[SlotId - 1].Output[1]; /* Delayed by 1 sample */
 
 	case 0x03: /* Algo: 1 - Carrier */
 		return 0;
