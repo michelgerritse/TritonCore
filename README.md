@@ -10,6 +10,7 @@ The following sound devices are emulated:
 - Sega 32X PWM
 - SegaPCM
 - Texas Instruments SN76489 (family/clones)
+- Yamaha Y8950 (MSX-Audio)
 - Yamaha YM2203
 - Yamaha YM2608
 - Yamaha YM2610(B)
