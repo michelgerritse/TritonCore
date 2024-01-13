@@ -69,6 +69,8 @@ private:
 		uint8_t		PhaseHH8;		/* High hat phase bit (b8) */
 		uint8_t		PhaseHH;		/* High hat phase bits (b7, b3, b2) */
 		uint8_t		PhaseTC;		/* Top cymbal phase bits (b5, b3) */
+
+		uint32_t	LsiTest2;		/* LSI test bit 2 */
 	};
 
 	uint32_t	m_ClockSpeed;

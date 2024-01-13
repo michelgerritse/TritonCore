@@ -307,7 +307,6 @@ namespace OPL /* FM Operator Type-L */
 		uint32_t	SustainLvl;		/* Sustain level (5-bit: 4.1) */
 		uint32_t	KeyScaleShift;	/* Key scale level shift */
 
-		uint32_t	EgActive;		/* Envelope active flag */
 		uint32_t	EgPhase;		/* Envelope phase */
 		uint32_t	EgRate[4];		/* Envelope rates (4-bit) */
 		uint32_t	EgLevel;		/* Envelope internal level (9-bit: 4.5) */

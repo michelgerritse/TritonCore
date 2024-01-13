@@ -15,7 +15,6 @@ See LICENSE.txt in the root directory of this source tree.
 
 /*
 	Yamaha YM3812 (OPL2)
-
 */
 
 #define FLAG_TIMER2	0x20 /* Timer 2 overflow */
@@ -192,6 +191,7 @@ void YM3812::WriteRegisterArray(uint8_t Address, uint8_t Data)
 		{
 		case 0x01: /* LSI test */
 			m_OPL.WaveSelectEnable = (Data >> 5) & 0x01;
+			m_OPL.LsiTest2 = (Data >> 2) & 0x01; /* Phase generator reset */
 			break;
 
 		case 0x02: /* Timer 1 */
@@ -485,11 +485,7 @@ void YM3812::UpdatePhaseGenerator(uint32_t SlotId)
 	uint32_t FNum = Chan.FNum;
 	
 	/* Reset phase counter */
-	if (Slot.PgReset)
-	{
-		Slot.PgPhase = 0;
-		Slot.PgReset = 0;
-	}
+	if (Slot.PgReset | m_OPL.LsiTest2) Slot.PgPhase = 0;
 
 	/* Apply LFO-PM (vibrato) */
 	if (Slot.LfoPmOn != 0)
@@ -604,18 +600,19 @@ void YM3812::UpdateEnvelopeGenerator(uint32_t SlotId)
 	switch ((NewKeyState << 1) | Slot.KeyState)
 	{
 	case 0x00:
-	case 0x03: /* Ignore */
+	case 0x03: /* No key state changes */
+		Slot.PgReset = 0;
 		break;
 
-	case 0x01: /* Key Off */
-		Slot.EgPhase  = ADSR::Release;
+	case 0x01: /* Key off state */
+		Slot.EgPhase = ADSR::Release;
+		Slot.PgReset = 0;
 		Slot.KeyState = 0;
 		break;
 
-	case 0x02: /* Key On */
-		Slot.EgPhase  = ADSR::Attack;
-		Slot.EgActive = 1;
-		Slot.PgReset  = 1;
+	case 0x02: /* Key on state */
+		Slot.EgPhase = ADSR::Attack;
+		Slot.PgReset = 1;
 		Slot.KeyState = 1;
 		EnvelopeStart = 1;
 		break;
@@ -646,7 +643,7 @@ void YM3812::UpdateEnvelopeGenerator(uint32_t SlotId)
 		break;
 	}
 
-	if ((Rate != 0) || (Slot.EgActive != 0))
+	if (Rate != 0)
 	{
 		/* Calculate scaled rate: (4 * rate) + scale value */
 		uint32_t ScaledRate = std::min((Rate << 2) + (Chan.KeyCode >> Slot.KeyScaling), 63u);
@@ -675,7 +672,7 @@ void YM3812::UpdateEnvelopeGenerator(uint32_t SlotId)
 				}
 				else
 				{
-					Level += ((~Level * AttnInc) >> 4);
+					if (Level != 0) Level += ((~Level * AttnInc) >> 3);
 				}
 
 				if (Level == 0) Slot.EgPhase = (Slot.SustainLvl != 0) ? ADSR::Decay : ADSR::Sustain;
@@ -684,19 +681,12 @@ void YM3812::UpdateEnvelopeGenerator(uint32_t SlotId)
 			case ADSR::Decay:
 				Level += AttnInc;
 				if ((Level >> 4) == Slot.SustainLvl) Slot.EgPhase = ADSR::Sustain;
-
-				/* Envelope off */
-				Slot.EgActive = (Level & YM::OPL::MaxEgLevel) ^ YM::OPL::MaxEgLevel;
-				if (Slot.EgActive == 0) Level = YM::OPL::MaxAttenuation;
 				break;
 
 			case ADSR::Sustain:
 			case ADSR::Release:
 				Level += AttnInc;
-
-				/* Envelope off */
-				Slot.EgActive = (Level & YM::OPL::MaxEgLevel) ^ YM::OPL::MaxEgLevel;
-				if (Slot.EgActive == 0) Level = YM::OPL::MaxAttenuation;
+				if (Level >= YM::OPL::MaxEgLevel) Level = YM::OPL::MaxAttenuation;
 				break;
 			}
 
