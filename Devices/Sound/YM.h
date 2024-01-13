@@ -50,6 +50,7 @@ namespace YM /* Yamaha */
 	struct adpcmb_t
 	{
 		uint8_t		Ctrl1;			/* Control 1 (8-bit) */
+		uint8_t		Ctrl2;			/* Control 2 (8-bit) */
 		pair32_t	Start;			/* Start address (16-bit) */
 		pair32_t	Stop;			/* Stop address (16-bit) */
 		pair32_t	Limit;			/* Limit address (16-bit) */

@@ -20,6 +20,7 @@
     <None Include="$(MSBuildThisFileDirectory)README.md" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\DAC\YM3014.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\ADPCM.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\AY.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\AY8910.h" />
@@ -29,6 +30,7 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\SegaPCM.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\SegaPWM.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\SN76489.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\Y8950.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YM.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YM2149.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YM2203.h" />
@@ -50,12 +52,14 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)TritonCore.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\DAC\YM3014.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\ADPCM.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\AY8910.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\MSM6295.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\RF5C68.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\SegaPCM.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\SegaPWM.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\Y8950.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\YM2149.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\YM2203.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\YM2608.cpp" />

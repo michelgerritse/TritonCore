@@ -89,6 +89,12 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YM3812.h">
       <Filter>Devices\Sound\Yamaha\OPL</Filter>
     </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\Y8950.h">
+      <Filter>Devices\Sound\Yamaha\OPL</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\DAC\YM3014.h">
+      <Filter>Devices\DAC\Yamaha</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Interfaces">
@@ -132,6 +138,12 @@
     </Filter>
     <Filter Include="Devices\Sound\General Instrument">
       <UniqueIdentifier>{e9132e83-027a-4f4f-bc6f-7b0fe3fe387d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Devices\DAC">
+      <UniqueIdentifier>{e2480590-2d32-4f78-8404-c98aee2278d6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Devices\DAC\Yamaha">
+      <UniqueIdentifier>{aa8c3f92-aa97-4a01-9f33-38ad3ba67119}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -188,6 +200,12 @@
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\YM3812.cpp">
       <Filter>Devices\Sound\Yamaha\OPL</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\Y8950.cpp">
+      <Filter>Devices\Sound\Yamaha\OPL</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\DAC\YM3014.cpp">
+      <Filter>Devices\DAC\Yamaha</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
