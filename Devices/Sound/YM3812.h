@@ -15,7 +15,7 @@ See LICENSE.txt in the root directory of this source tree.
 #define _YM3812_H_
 
 #include "../../Interfaces/ISoundDevice.h"
-#include "YM.h"
+#include "YM_OPL.h"
 
 /* Yamaha YM3812 (OPL2) */
 class YM3812 : public ISoundDevice

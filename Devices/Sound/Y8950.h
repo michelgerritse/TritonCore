@@ -16,6 +16,7 @@ See LICENSE.txt in the root directory of this source tree.
 
 #include "../../Interfaces/ISoundDevice.h"
 #include "../../Interfaces/IMemoryAccess.h"
+#include "YM_OPL.h"
 #include "YM.h"
 
 /* Yamaha Y8950 (MSX-AUDIO) */

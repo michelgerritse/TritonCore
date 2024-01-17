@@ -15,7 +15,7 @@ See LICENSE.txt in the root directory of this source tree.
 #define _YM3526_H_
 
 #include "../../Interfaces/ISoundDevice.h"
-#include "YM.h"
+#include "YM_OPL.h"
 
 /* Yamaha YM3526 (OPL) */
 class YM3526 : public ISoundDevice

@@ -95,6 +95,9 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\DAC\YM3014.h">
       <Filter>Devices\DAC\Yamaha</Filter>
     </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YM_OPL.h">
+      <Filter>Devices\Sound\Yamaha</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Interfaces">

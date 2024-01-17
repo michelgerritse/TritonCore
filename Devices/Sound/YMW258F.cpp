@@ -12,6 +12,7 @@ See LICENSE.txt in the root directory of this source tree.
 
 */
 #include "YMW258F.h"
+#include "YM_OPL.h"
 #include "YM.h"
 
 /*
