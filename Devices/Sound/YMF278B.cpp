@@ -12,8 +12,7 @@ See LICENSE.txt in the root directory of this source tree.
 
 */
 #include "YMF278B.h"
-#include "YM_OPL.h"
-#include "YM.h"
+#include "YM_GEW.h"
 
 /*
 	Yamaha YMF278-B (OPL4)
@@ -57,7 +56,7 @@ YMF278B::YMF278B() :
 	m_ClockSpeed(33868800),
 	m_ClockDivider(768)
 {
-	YM::AWM::BuildTables();
+	YM::GEW8::BuildTables();
 
 	/* Set memory size to 4MB */
 	m_Memory.resize(0x400000);
@@ -106,7 +105,7 @@ void YMF278B::Reset(ResetType Type)
 		Channel.EgLevel = 0x3FF;
 
 		/* Default LFO period */
-		Channel.LfoPeriod = YM::AWM::LfoPeriod[0];
+		Channel.LfoPeriod = YM::GEW8::LfoPeriod[0];
 	}
 
 	if (Type == ResetType::PowerOnDefaults)
@@ -310,8 +309,8 @@ void YMF278B::WritePCM(uint8_t Register, uint8_t Data)
 	case 0x70: case 0x71: case 0x72: case 0x73: case 0x74: case 0x75: case 0x76: case 0x77:
 	case 0x78: case 0x79: case 0x7A: case 0x7B: case 0x7C: case 0x7D: case 0x7E: case 0x7F:
 		Channel.KeyPending = Data >> 7;
-		Channel.PanAttnL = YM::AWM::PanAttnL[Data & 0x0F];
-		Channel.PanAttnR = YM::AWM::PanAttnR[Data & 0x0F];
+		Channel.PanAttnL = YM::GEW8::PanAttnL[Data & 0x0F];
+		Channel.PanAttnR = YM::GEW8::PanAttnR[Data & 0x0F];
 		Channel.LfoReset = (Data >> 5) & 0x01;		
 		//TODO: Damp, output selection
 		break;
@@ -320,7 +319,7 @@ void YMF278B::WritePCM(uint8_t Register, uint8_t Data)
 	case 0x80: case 0x81: case 0x82: case 0x83: case 0x84: case 0x85: case 0x86: case 0x87:
 	case 0x88: case 0x89: case 0x8A: case 0x8B: case 0x8C: case 0x8D: case 0x8E: case 0x8F:
 	case 0x90: case 0x91: case 0x92: case 0x93: case 0x94: case 0x95: case 0x96: case 0x97:
-		Channel.LfoPeriod = YM::AWM::LfoPeriod[(Data >> 3) & 0x07];
+		Channel.LfoPeriod = YM::GEW8::LfoPeriod[(Data >> 3) & 0x07];
 		Channel.PmDepth = Data & 0x07;
 		break;
 
@@ -410,7 +409,7 @@ void YMF278B::LoadWaveTable(CHANNEL& Channel)
 	Channel.End = 0x10000 - ((m_Memory[Offset + 5] << 8) | m_Memory[Offset + 6]);
 
 	/* Byte 7: LFO + VIB */
-	Channel.LfoPeriod = YM::AWM::LfoPeriod[(m_Memory[Offset + 7] >> 3) & 0x07];
+	Channel.LfoPeriod = YM::GEW8::LfoPeriod[(m_Memory[Offset + 7] >> 3) & 0x07];
 	Channel.PmDepth = m_Memory[Offset + 7] & 0x07;
 
 	/* Byte 8: Attack rate + decay rate  */
@@ -535,7 +534,7 @@ void YMF278B::UpdateLFO(CHANNEL& Channel)
 void YMF278B::UpdateAddressGenerator(CHANNEL& Channel)
 {
 	/* Vibrato lookup */
-	int32_t Vibrato = YM::AWM::VibratoTable[Channel.LfoStep >> 2][Channel.PmDepth]; /* 64 steps */
+	int32_t Vibrato = YM::GEW8::VibratoTable[Channel.LfoStep >> 2][Channel.PmDepth]; /* 64 steps */
 
 	/* Calculate address increment */
 	uint32_t Inc = ((1024 + Channel.FNum + Vibrato) << (8 + Channel.Octave)) >> 3;
@@ -574,7 +573,7 @@ void YMF278B::UpdateEnvelopeGenerator(CHANNEL& Channel)
 	uint32_t Rate = CalculateRate(Channel, Channel.Rate[Channel.EgPhase]);
 
 	/* Get EG counter resolution */
-	uint32_t Shift = YM::OPL::EgShift[Rate];
+	uint32_t Shift = YM::GEW8::EgShift[Rate];
 	uint32_t Mask = (1 << Shift) - 1;
 
 	if ((m_EnvelopeCounter & Mask) == 0) /* Counter overflowed */
@@ -583,7 +582,7 @@ void YMF278B::UpdateEnvelopeGenerator(CHANNEL& Channel)
 		uint32_t Cycle = (m_EnvelopeCounter >> Shift) & 0x07;
 
 		/* Lookup attenuation adjustment */
-		uint32_t AttnInc = YM::OPL::EgLevelAdjust[Rate][Cycle];
+		uint32_t AttnInc = YM::GEW8::EgLevelAdjust[Rate][Cycle];
 
 		if (Channel.EgPhase == ADSR::Attack) /* Exponential decrease (0x3FF -> 0) */
 		{
@@ -656,7 +655,7 @@ void YMF278B::UpdateMultiplier(CHANNEL& Channel)
 	int16_t Sample = Channel.Sample;
 
 	/* Apply AM LFO (tremolo) */
-	Attenuation += YM::AWM::TremoloTable[Channel.LfoStep][Channel.AmDepth];
+	Attenuation += YM::GEW8::TremoloTable[Channel.LfoStep][Channel.AmDepth];
 
 	/* Apply total level */
 	Attenuation += Channel.TL << 2;
@@ -674,8 +673,8 @@ void YMF278B::UpdateMultiplier(CHANNEL& Channel)
 	AttnR <<= 2;
 
 	/* dB to linear conversion (13-bit) */
-	uint32_t VolumeL = YM::ExpTable[AttnL & 0xFF] >> (AttnL >> 8);
-	uint32_t VolumeR = YM::ExpTable[AttnR & 0xFF] >> (AttnR >> 8);
+	uint32_t VolumeL = YM::GEW8::ExpTable[AttnL & 0xFF] >> (AttnL >> 8);
+	uint32_t VolumeR = YM::GEW8::ExpTable[AttnR & 0xFF] >> (AttnR >> 8);
 
 	/* Multiply with interpolated sample */
 	Channel.OutputL = (Sample * VolumeL) >> 15;

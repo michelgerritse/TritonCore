@@ -12,34 +12,48 @@ See LICENSE.txt in the root directory of this source tree.
 
 */
 #include "YMW258F.h"
-#include "YM_OPL.h"
-#include "YM.h"
 
 /*
 	Yamaha YMW258-F (GEW8)
 
 	This chip is also known as the Sega MultiPCM (315-5560)
 	- 28 PCM channels
-	- 8-bit and 12-bit linear PCM data (possibly 16-bit as well)
+	- 8-bit, 12-bit and 16-bit linear PCM data
 	- 16-stage pan control
 	- Envelope control
 	- PM and AM LFO (a.k.a vibrato and tremolo)
 	- Interface up to 4MB of ROM or SRAM (22-bit address bus + 8-bit data bus)
 	
 	Things to validate:
-	- LFO validation
+	- Envelope resolution (9 vs. 10-bit.. assuming 10)
+	- Envelope attack/decay timings
+	- LFO (vibrato and tremolo) validation
 	- TL interpolation
-	- Attenuation (Envelope has a -96dB - 0dB range, TL and PAN a -48dB - 0 range but something is not adding up)
 
 	Sega banking information provided by Valley Bell:
 	https://github.com/ValleyBell/libvgm
 */
 
-YMW258F::YMW258F() :
-	m_ClockSpeed(9878400),
+/* Audio output enumeration */
+enum AudioOut
+{
+	GEW8 = 0
+};
+
+/* Envelope phases */
+enum ADSR : uint32_t
+{
+	Attack = 0,
+	Decay,
+	Sustain,
+	Release
+};
+
+YMW258F::YMW258F(uint32_t ClockSpeed) :
+	m_ClockSpeed(ClockSpeed),
 	m_ClockDivider(224)
 {
-	YM::AWM::BuildTables();
+	YM::GEW8::BuildTables();
 
 	/* Set memory size to 4MB */
 	m_Memory.resize(0x400000);
@@ -49,7 +63,7 @@ YMW258F::YMW258F() :
 
 const wchar_t* YMW258F::GetDeviceName()
 {
-	return L"Yamaha YMW258F";
+	return L"Yamaha YMW258-F";
 }
 
 void YMW258F::Reset(ResetType Type)
@@ -60,9 +74,8 @@ void YMW258F::Reset(ResetType Type)
 	m_ChannelLatch = 0;
 	m_RegisterLatch = 0;
 
-	/* Reset counters */
-	m_EnvelopeCounter = 0;
-	m_InterpolCounter = 0;
+	/* Reset timers */
+	m_Timer = 0;
 
 	/* Reset banking (Sega MultiPCM only) */
 	m_Banking = 0;
@@ -72,14 +85,14 @@ void YMW258F::Reset(ResetType Type)
 	/* Clear channel registers  */
 	for (auto& Channel : m_Channel)
 	{
-		memset(&Channel, 0, sizeof(CHANNEL));
+		memset(&Channel, 0, sizeof(YM::GEW8::channel_t));
 
 		/* Default envelope state */
-		Channel.EgPhase = ADSR::Off;
-		Channel.EgLevel = 0x3FF;
+		Channel.EgPhase = ADSR::Release;
+		Channel.EgLevel = YM::GEW8::MaxAttenuation;
 
 		/* Default LFO period */
-		Channel.LfoPeriod = YM::AWM::LfoPeriod[0];
+		Channel.LfoPeriod = YM::GEW8::LfoPeriod[0];
 	}
 
 	if (Type == ResetType::PowerOnDefaults)
@@ -114,7 +127,7 @@ void YMW258F::SendExclusiveCommand(uint32_t Command, uint32_t Value)
 
 bool YMW258F::EnumAudioOutputs(uint32_t OutputNr, AUDIO_OUTPUT_DESC& Desc)
 {
-	if (OutputNr == 0)
+	if (OutputNr == AudioOut::GEW8)
 	{
 		Desc.SampleRate = m_ClockSpeed / m_ClockDivider;
 		Desc.SampleFormat = 0;
@@ -204,8 +217,8 @@ void YMW258F::WriteChannel(uint8_t ChannelNr, uint8_t Register, uint8_t Data)
 	switch (Register & 0x0F) /* Are registers mirrored ? */
 	{
 	case 0x00: /* Pan */
-		Channel.PanAttnL = YM::AWM::PanAttnL[Data >> 4];
-		Channel.PanAttnR = YM::AWM::PanAttnR[Data >> 4];
+		Channel.PanAttnL = YM::GEW8::PanAttnL[Data >> 4];
+		Channel.PanAttnR = YM::GEW8::PanAttnR[Data >> 4];
 
 		assert((Data & 0x0F) == 0); /* Test for undocumented bits */
 		break;
@@ -232,26 +245,23 @@ void YMW258F::WriteChannel(uint8_t ChannelNr, uint8_t Register, uint8_t Data)
 		break;
 
 	case 0x04: /* Channel control */
-		ProcessKeyOnOff(Channel, Data >> 7);
+		Channel.KeyLatch = Data >> 7;
 
 		assert((Data & 0x7F) == 0); /* Test for undocumented bits */
 		break;
 
 	case 0x05: /* Total level / Level direct */
 		/* The OPL4 manual page 18 states the weighting for each TL bit as:
-		   24dB - 12 dB - 6dB - 3dB - 1.5dB - 0.75dB - 0.375dB
+		   24dB - 12dB - 6dB - 3dB - 1.5dB - 0.75dB - 0.375dB
 		*/
+		Channel.TargetTL = Data >> 1;
 
-		Channel.TargetTL = (Data & 0xFE) >> 1;
-
-		if (Data & 0x01) /* Level direct */
-		{
-			Channel.TL = Channel.TargetTL;
-		}
+		/* Level direct */
+		if (Data & 0x01) Channel.TotalLevel = Channel.TargetTL;
 		break;
 
 	case 0x06: /* LFO Frequency / Vibrato (PM) */
-		Channel.LfoPeriod = YM::AWM::LfoPeriod[(Data >> 3) & 0x07];
+		Channel.LfoPeriod = YM::GEW8::LfoPeriod[(Data >> 3) & 0x07];
 		Channel.PmDepth = Data & 0x07;
 
 		assert((Data & 0xC0) == 0); /* Test for undocumented bits */
@@ -275,7 +285,7 @@ void YMW258F::WriteChannel(uint8_t ChannelNr, uint8_t Register, uint8_t Data)
 	}
 }
 
-void YMW258F::LoadWaveTable(CHANNEL& Channel)
+void YMW258F::LoadWaveTable(YM::GEW8::channel_t& Channel)
 {
 	/* Read wave table header. Each header is 12-bytes */
 	uint32_t Offset = Channel.WaveNr.u16 * 12;
@@ -293,7 +303,7 @@ void YMW258F::LoadWaveTable(CHANNEL& Channel)
 	Channel.End = 0x10000 - ((m_Memory[Offset + 5] << 8) | m_Memory[Offset + 6]);
 
 	/* LFO (3-bit) + Vibrato (3-bit) */
-	Channel.LfoPeriod = YM::AWM::LfoPeriod[(m_Memory[Offset + 7] >> 3) & 0x07];
+	Channel.LfoPeriod = YM::GEW8::LfoPeriod[(m_Memory[Offset + 7] >> 3) & 0x07];
 	Channel.PmDepth = m_Memory[Offset + 7] & 0x07;
 
 	/* Attack rate (4-bit) + Decay rate (4-bit)  */
@@ -301,15 +311,14 @@ void YMW258F::LoadWaveTable(CHANNEL& Channel)
 	Channel.EgRate[ADSR::Decay] = m_Memory[Offset + 8] & 0x0F;
 
 	/* Decay level (4-bit) + Sustain rate (4-bit) */
+	Channel.DecayLvl = m_Memory[Offset + 9] >> 4;
 	Channel.EgRate[ADSR::Sustain] = m_Memory[Offset + 9] & 0x0F;
 	
 	/* If all DL bits are set, DL is -93dB. See OPL4 manual page 20 */
-	Channel.DL = (m_Memory[Offset + 9] & 0xF0) >> 4;
-	Channel.DL |= (Channel.DL + 1) & 0x10;
-	Channel.DL <<= 5;
+	Channel.DecayLvl |= (Channel.DecayLvl + 1) & 0x10;
 
 	/* Rate correction (4-bit) + Release rate (4-bit) */
-	Channel.RC = m_Memory[Offset + 10] >> 4;
+	Channel.EgRateCorrect = m_Memory[Offset + 10] >> 4;
 	Channel.EgRate[ADSR::Release] = m_Memory[Offset + 10] & 0x0F;
 
 	/* Tremolo (3-bit) */
@@ -341,44 +350,37 @@ void YMW258F::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer
 	int32_t OutL;
 	int32_t OutR;
 
-	while (Samples != 0)
+	while (Samples-- != 0)
 	{
 		OutL = 0;
 		OutR = 0;
 
+		/* Update global timer */
+		m_Timer++;
+		
 		for (auto& Channel : m_Channel)
 		{
 			UpdateLFO(Channel);
 			
-			if (Channel.EgPhase != ADSR::Off)
-			{
-				UpdateAddressGenerator(Channel);
-				UpdateInterpolator(Channel);
-				UpdateEnvelopeGenerator(Channel);
-				UpdateMultiplier(Channel);
+			UpdateEnvelopeGenerator(Channel);
+			UpdateAddressGenerator(Channel);
+			UpdateMultiplier(Channel);
 
-				OutL += Channel.OutputL;
-				OutR += Channel.OutputR;
-			}
+			OutL += Channel.OutputL;
+			OutR += Channel.OutputR;
 		}
-
-		/* Global counter increments */
-		m_EnvelopeCounter++;
-		m_InterpolCounter++;
 
 		/* Limiter (signed 16-bit) */
 		OutL = std::clamp(OutL, -32768, 32767);
 		OutR = std::clamp(OutR, -32768, 32767);
 
 		/* 16-bit DAC output (interleaved) */
-		OutBuffer[0]->WriteSampleS16(OutL);
-		OutBuffer[0]->WriteSampleS16(OutR);
-
-		Samples--;
+		OutBuffer[AudioOut::GEW8]->WriteSampleS16(OutL);
+		OutBuffer[AudioOut::GEW8]->WriteSampleS16(OutR);
 	}
 }
 
-int16_t YMW258F::ReadSample(CHANNEL& Channel)
+int16_t YMW258F::ReadSample(YM::GEW8::channel_t& Channel)
 {
 	uint32_t Offset;
 	int16_t Sample = 0;
@@ -416,7 +418,7 @@ int16_t YMW258F::ReadSample(CHANNEL& Channel)
 	return Sample;
 }
 
-void YMW258F::UpdateLFO(CHANNEL& Channel)
+void YMW258F::UpdateLFO(YM::GEW8::channel_t& Channel)
 {
 	if (++Channel.LfoCounter >= Channel.LfoPeriod)
 	{
@@ -428,10 +430,22 @@ void YMW258F::UpdateLFO(CHANNEL& Channel)
 	}
 }
 
-void YMW258F::UpdateAddressGenerator(CHANNEL& Channel)
+void YMW258F::UpdateAddressGenerator(YM::GEW8::channel_t& Channel)
 {
+	/* Reset address counter */
+	if (Channel.PgReset)
+	{
+		/* Reset sample counter */
+		Channel.SampleCount = 0;
+		Channel.SampleDelta = 0;
+
+		/* Reset sample interpolation */
+		Channel.SampleT0 = 0;
+		Channel.SampleT1 = 0;
+	}
+	
 	/* Vibrato lookup */
-	int32_t Vibrato = YM::AWM::VibratoTable[Channel.LfoStep >> 2][Channel.PmDepth]; /* 64 steps */
+	int32_t Vibrato = YM::GEW8::VibratoTable[Channel.LfoStep >> 2][Channel.PmDepth]; /* 64 steps */
 
 	/* Calculate address increment */
 	uint32_t Inc = ((1024 + Channel.FNum + Vibrato) << (8 + Channel.Octave)) >> 3;
@@ -447,127 +461,13 @@ void YMW258F::UpdateAddressGenerator(CHANNEL& Channel)
 		Channel.SampleDelta &= 0xFFFF;
 
 		/* Check for end address */
-		if (Channel.SampleCount >= Channel.End)
-		{
-			/* Loop */
-			Channel.SampleCount = Channel.Loop;
-		}
+		if (Channel.SampleCount >= Channel.End) Channel.SampleCount = Channel.Loop;
 
 		/* Load new sample */
 		Channel.SampleT0 = Channel.SampleT1;
 		Channel.SampleT1 = ReadSample(Channel);
 	}
-}
 
-void YMW258F::UpdateEnvelopeGenerator(CHANNEL& Channel)
-{	
-	/* Get adjusted / key scaled rate */
-	uint32_t Rate = CalculateRate(Channel, Channel.EgRate[Channel.EgPhase]);
-
-	/* Get EG counter resolution */
-	uint32_t Shift = YM::OPL::EgShift[Rate];
-	uint32_t Mask = (1 << Shift) - 1;
-
-	if ((m_EnvelopeCounter & Mask) == 0) /* Counter overflowed */
-	{
-		uint16_t Level = Channel.EgLevel;
-		
-		/* Get update cycle (8 cycles in total) */
-		uint32_t Cycle = (m_EnvelopeCounter >> Shift) & 0x07;
-
-		/* Lookup attenuation adjustment */
-		uint32_t AttnInc = YM::OPL::EgLevelAdjust[Rate][Cycle];
-
-		if (Channel.EgPhase == ADSR::Attack) /* Exponential decrease (0x3FF -> 0) */
-		{
-			if (Rate < 63)
-			{
-				Level += (~Level * AttnInc) >> 4;
-
-				/* If we've reached minimum attenuation: move to the decay phase
-				or move to the sustain phase when decay level is 0 */
-				if (Level == 0) Channel.EgPhase = (Channel.DL != 0) ? ADSR::Decay : ADSR::Sustain;
-			}
-		}
-		else /* Linear increase (0 -> 0x3FF) */
-		{
-			Level += AttnInc;
-
-			/* Limit to maximum attenuation */
-			if (Level > 0x3FF)
-			{
-				Level = 0x3FF;
-				Channel.EgPhase = ADSR::Off;
-			}
-
-			if (Channel.EgPhase == ADSR::Decay)
-			{
-				/* We reached the decay level, move to the sustain phase */
-				if (Level >= Channel.DL) Channel.EgPhase = ADSR::Sustain;
-			}
-		}
-
-		Channel.EgLevel = Level;
-	}
-}
-
-void YMW258F::UpdateMultiplier(CHANNEL& Channel)
-{
-	/* Level interpolation
-
-	( (78.2 * 44100) / 1000) / 128 (TL steps) = ~27 samples
-	((156.4 * 44100) / 1000) / 128 (TL steps) = ~54 samples
-
-	This seems wrong IMHO but those are the numbers mentioned in the OPL4 manual.
-
-	For now I use a global counter which counts up once every sample
-	(might as well use the envelope counter as it counts up on the same clock) */
-	if (Channel.TargetTL != Channel.TL)
-	{
-		if (Channel.TL < Channel.TargetTL) /* Maximum to minimum volume (156.4 msec) */
-		{
-			if ((m_InterpolCounter % 54) == 0) Channel.TL += 1;
-		}
-		else /* Minimum to maximum volume (78.2 msec) */
-		{
-			if ((m_InterpolCounter % 27) == 0) Channel.TL -= 1;
-		}
-	}
-
-	/* Get envelope generator output (10-bit = 4.6 fixed point) */
-	uint32_t Attenuation = Channel.EgLevel;
-
-	int16_t Sample = Channel.Sample;
-
-	/* Apply AM LFO (tremolo) */
-	Attenuation += YM::AWM::TremoloTable[Channel.LfoStep][Channel.AmDepth];
-
-	/* Apply total level */
-	Attenuation += Channel.TL << 2;
-
-	/* Apply pan */
-	uint32_t AttnL = Attenuation + Channel.PanAttnL;
-	uint32_t AttnR = Attenuation + Channel.PanAttnR;
-
-	/* Limit */
-	if (AttnL > 0x3FF) AttnL = 0x3FF;
-	if (AttnR > 0x3FF) AttnR = 0x3FF;
-
-	/* Convert from 4.6 to 4.8 fixed point */
-	AttnL <<= 2;
-	AttnR <<= 2;
-
-	/* dB to linear conversion (13-bit) */
-	uint32_t VolumeL = YM::ExpTable[AttnL & 0xFF] >> (AttnL >> 8);
-	uint32_t VolumeR = YM::ExpTable[AttnR & 0xFF] >> (AttnR >> 8);
-
-	/* Multiply with interpolated sample */
-	Channel.OutputL = (Sample * VolumeL) >> 15;
-	Channel.OutputR = (Sample * VolumeR) >> 15;
-}
-
-void YMW258F::UpdateInterpolator(CHANNEL& Channel)
-{
 	uint32_t T0 = 0x10000 - Channel.SampleDelta;
 	uint32_t T1 = Channel.SampleDelta;
 
@@ -575,68 +475,146 @@ void YMW258F::UpdateInterpolator(CHANNEL& Channel)
 	Channel.Sample = ((T0 * Channel.SampleT0) + (T1 * Channel.SampleT1)) >> 16;
 }
 
-void YMW258F::ProcessKeyOnOff(CHANNEL& Channel, uint32_t NewState)
-{
-	if (Channel.KeyOn ^ NewState)
+void YMW258F::UpdateEnvelopeGenerator(YM::GEW8::channel_t& Channel)
+{	
+	/*-------------------------------------*/
+	/* Step 1: Key On / Off event handling */
+	/*-------------------------------------*/
+	uint32_t EnvelopeStart = 0;
+
+	switch ((Channel.KeyLatch << 1) | Channel.KeyState)
 	{
-		if (NewState) /* Key On */
+	case 0x00:
+	case 0x03: /* No key event changes */
+		Channel.PgReset = 0;
+		break;
+
+	case 0x01: /* Key off event */
+		Channel.EgPhase = ADSR::Release;
+		Channel.PgReset = 0;
+		Channel.KeyState = 0;
+		break;
+
+	case 0x02: /* Key on event */
+		Channel.EgPhase = ADSR::Attack;
+		Channel.PgReset = 1;
+		Channel.KeyState = 1;
+		EnvelopeStart = 1;
+		break;
+	}
+
+	/*-------------------------------*/
+	/* Step 2: Envelope update cycle */
+	/*-------------------------------*/
+	uint32_t Rate = Channel.EgRate[Channel.EgPhase];
+	
+	if (Rate != 0)
+	{
+		/* How to calculate the actual rate (OPL4 manual page 23):
+			RATE = (OCT + rate correction) x 2 + F9 + RD
+			OCT  = Octave (-7 to +7)
+			F9   = Fnum bit 9 (0 or 1)
+			RD   = Rate x 4		
+		*/
+		uint32_t ActualRate = 63;
+
+		if (Rate != 15)
 		{
-			/* Reset sample counter */
-			Channel.SampleCount = 0;
-			Channel.SampleDelta = 0;
+			ActualRate  = (Rate << 2) + Channel.FNum9;
+			ActualRate += std::clamp<int32_t>(Channel.Octave + Channel.EgRateCorrect, 0, 15) << 1;
+		}
 
-			/* Reset sample interpolation */
-			Channel.SampleT0 = 0;
-			Channel.SampleT1 = 0;
+		/* Get timer resolution */
+		uint32_t Shift = YM::GEW8::EgShift[ActualRate];
+		uint32_t Mask = (1 << Shift) - 1;
 
-			/* Move envelope to attack phase */
-			Channel.EgPhase = ADSR::Attack;
+		if ((m_Timer & Mask) == 0) /* Timer expired */
+		{
+			uint16_t Level = Channel.EgLevel;
 
-			/* Instant attack */
-			if (CalculateRate(Channel, Channel.EgRate[ADSR::Attack]) == 63)
+			/* Get update cycle (8 cycles in total) */
+			uint32_t Cycle = (m_Timer >> Shift) & 0x07;
+
+			/* Lookup attenuation adjustment */
+			uint32_t AttnInc = YM::GEW8::EgLevelAdjust[ActualRate][Cycle];
+
+			switch (Channel.EgPhase)
 			{
-				/* Instant minimum attenuation */
-				Channel.EgLevel = 0;
+			case ADSR::Attack:
+				if (ActualRate == 63)
+				{
+					/* Instant attack */
+					if (EnvelopeStart) Level = 0;
+				}
+				else
+				{
+					if (Level != 0) Level += ((~Level * AttnInc) >> 4);
+				}
+
+				if (Level == 0) Channel.EgPhase = (Channel.DecayLvl != 0) ? ADSR::Decay : ADSR::Sustain;
+				break;
+
+			case ADSR::Decay:
+				Level += AttnInc;
+				if ((Level >> 5) == Channel.DecayLvl) Channel.EgPhase = ADSR::Sustain;
+				break;
+
+			case ADSR::Sustain:
+			case ADSR::Release:
+				Level += AttnInc;
+				if (Level >= YM::GEW8::MaxEgLevel) Level = YM::GEW8::MaxAttenuation;
+				break;
 			}
 
-			/* Move to decay or sustain phase */
-			if (Channel.EgLevel == 0) Channel.EgPhase = Channel.DL ? ADSR::Decay : ADSR::Sustain;
+			Channel.EgLevel = Level;
 		}
-		else /* Key Off */
-		{
-			/* Move envelope to release phase */
-			Channel.EgPhase = ADSR::Release;
-		}
-
-		Channel.KeyOn = NewState;
 	}
+
+	/*-------------------------------------*/
+	/* Step 3: Envelope output calculation */
+	/*-------------------------------------*/
+	
+	/* Total Level interpolation:
+
+	( (78.2 * 44100) / 1000) / 127 (TL steps) = ~27 samples
+	((156.4 * 44100) / 1000) / 127 (TL steps) = ~54 samples
+
+	This seems wrong IMHO but those are the numbers mentioned in the OPL4 manual.
+	*/
+	if (Channel.TargetTL != Channel.TotalLevel)
+	{
+		if (Channel.TotalLevel < Channel.TargetTL) /* Maximum to minimum volume (156.4 msec) */
+		{
+			if ((m_Timer % 54) == 0) Channel.TotalLevel += 1;
+		}
+		else /* Minimum to maximum volume (78.2 msec) */
+		{
+			if ((m_Timer % 27) == 0) Channel.TotalLevel -= 1;
+		}
+	}
+
+	uint32_t Attn = Channel.EgLevel + (Channel.TotalLevel << 2);
+
+	/* Apply LFO-AM (tremolo) */
+	Attn += YM::GEW8::TremoloTable[Channel.LfoStep][Channel.AmDepth];
+
+	/* Apply pan, limit and shift from 4.6 to 4.8 */
+	Channel.EgOutputL = std::min(Attn + Channel.PanAttnL, YM::GEW8::MaxAttenuation) << 2;
+	Channel.EgOutputR = std::min(Attn + Channel.PanAttnR, YM::GEW8::MaxAttenuation) << 2;
 }
 
-uint8_t YMW258F::CalculateRate(CHANNEL& Channel, uint8_t Rate)
+void YMW258F::UpdateMultiplier(YM::GEW8::channel_t& Channel)
 {
-	/* How to calculate the actual rate (OPL4 manual page 23):
-	
-	   RATE = (OCT + rate correction) x 2 + F9 + RD
+	uint32_t AttnL = Channel.EgOutputL;
+	uint32_t AttnR = Channel.EgOutputR;
 
-	   OCT	= Octave (-7 to +7)
-	   F9	= Fnum bit 9 (0 or 1)
-	   RD	= Rate x 4
-	*/
+	/* dB to linear conversion (13-bit) */
+	uint32_t VolumeL = YM::GEW8::ExpTable[AttnL & 0xFF] >> (AttnL >> 8);
+	uint32_t VolumeR = YM::GEW8::ExpTable[AttnR & 0xFF] >> (AttnR >> 8);
 
-	if (Rate == 0) return 0;
-	if (Rate == 15) return 63;
-
-	Rate <<= 2; /* RD = Rate x 4 */
-
-	if (Channel.RC != 0xF)
-	{		
-		Rate += (2 * std::clamp<int32_t>(Channel.Octave + Channel.RC, 0, 15)) + Channel.FNum9;
-
-		/* Limit to a max. rate of 63 */
-		if (Rate > 63) Rate = 63;
-	}
-
-	return Rate;
+	/* Multiply with interpolated sample (14-bit) */
+	Channel.OutputL = (Channel.Sample * VolumeL) >> 15;
+	Channel.OutputR = (Channel.Sample * VolumeR) >> 15;
 }
 
 void YMW258F::CopyToMemory(uint32_t MemoryID, size_t Offset, uint8_t* Data, size_t Size)

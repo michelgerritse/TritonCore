@@ -16,12 +16,13 @@ See LICENSE.txt in the root directory of this source tree.
 
 #include "../../Interfaces/ISoundDevice.h"
 #include "../../Interfaces/IMemoryAccess.h"
+#include "YM_GEW.h"
 
 /* Yamaha YMW258-F (Advanced Wave Memory) */
 class YMW258F : public ISoundDevice, public IMemoryAccess
 {
 public:
-	YMW258F();
+	YMW258F(uint32_t ClockSpeed = 9'400'000); /* Clock taken from PSR510 service manual */
 	~YMW258F() = default;
 
 	/* IDevice methods */
@@ -42,60 +43,11 @@ public:
 
 private:
 	
-	/* Envelope phases */
-	enum ADSR : uint32_t
-	{
-		Attack = 0,
-		Decay,
-		Sustain,
-		Release,
-		Off
-	};
+	YM::GEW8::channel_t	m_Channel[28];
 
-	struct CHANNEL
-	{
-		pair16_t	WaveNr;		/* Wave table number (9-bit) */
-		uint32_t	FNum;		/* Frequency number (10-bit) */
-		uint32_t	FNum9;		/* Copy of FNum bit 9 */
-		int32_t		Octave;		/* Octave (signed 4-bit) */
-		uint32_t	PanAttnL;	/* Pan attenuation left */
-		uint32_t	PanAttnR;	/* Pan attenuation right */
-		uint32_t	TL;			/* Total Level (7-bit) */
-		uint32_t	TargetTL;	/* Interpolated TL */
-		uint32_t	RC;			/* Rate correction (4-bit) */
-		
-		uint32_t	KeyOn;		/* Key On / Off flag */
-		uint32_t	EgRate[4];	/* Envelope rates (4-bit) */
-		uint32_t	EgPhase;	/* Envelope phase */
-		uint16_t	EgLevel;	/* Envelope output level (10-bit) */
-		uint32_t	DL;			/* Decay level (4-bit) */
-
-		uint32_t	SampleCount;	/* Sample address (whole part) */
-		uint32_t	SampleDelta;	/* Sample address (fractional) */
-		
-		uint32_t	Format;		/* Wave format (2-bit) */
-		uint32_t	Start;		/* Start address (22-bit) */
-		uint32_t	Loop;		/* Loop address (16-bit) */
-		uint32_t	End;		/* End address (16-bit) */
-
-		uint32_t	LfoCounter;	/* LFO counter */
-		uint32_t	LfoPeriod;	/* LFO period */
-		uint8_t		LfoStep;	/* LFO step counter (8-bit) */
-		uint32_t	PmDepth;	/* Vibrato depth (3-bit) */
-		uint32_t	AmDepth;	/* Tremolo depth (3-bit) */
-
-		int16_t		SampleT0;	/* Sample interpolation T0 */
-		int16_t		SampleT1;	/* Sample interpolation T1 */
-		int16_t		Sample;		/* Interpolated sample */
-		int16_t		OutputL;	/* Channel output (left) */
-		int16_t		OutputR;	/* Channel output (right) */
-	};
-
-	CHANNEL		m_Channel[28];
 	uint8_t		m_ChannelLatch;		/* PCM address latch */
 	uint8_t		m_RegisterLatch;	/* PCM register latch */
-	uint32_t	m_EnvelopeCounter;	/* Global envelope counter */
-	uint32_t	m_InterpolCounter;	/* Global TL interpolation counter */
+	uint32_t	m_Timer;			/* Global timer */
 	
 	uint32_t	m_ClockSpeed;
 	uint32_t	m_ClockDivider;
@@ -108,17 +60,13 @@ private:
 	std::vector<uint8_t> m_Memory;
 
 	void	WriteChannel(uint8_t ChannelNr, uint8_t Register, uint8_t Data);
-	void	LoadWaveTable(CHANNEL& Channel);
-	int16_t ReadSample(CHANNEL& Channel);
+	void	LoadWaveTable(YM::GEW8::channel_t& Channel);
+	int16_t ReadSample(YM::GEW8::channel_t& Channel);
 	
-	void	UpdateLFO(CHANNEL& Channel);
-	void	UpdateAddressGenerator(CHANNEL& Channel);
-	void	UpdateEnvelopeGenerator(CHANNEL& Channel);
-	void	UpdateMultiplier(CHANNEL& Channel);
-	void	UpdateInterpolator(CHANNEL& Channel);
-	
-	void	ProcessKeyOnOff(CHANNEL& Channel, uint32_t NewState);
-	uint8_t CalculateRate(CHANNEL& Channel, uint8_t Rate);
+	void	UpdateLFO(YM::GEW8::channel_t& Channel);
+	void	UpdateAddressGenerator(YM::GEW8::channel_t& Channel);
+	void	UpdateEnvelopeGenerator(YM::GEW8::channel_t& Channel);
+	void	UpdateMultiplier(YM::GEW8::channel_t& Channel);
 };
 
 #endif // !_YMW258F_H_
