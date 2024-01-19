@@ -511,17 +511,33 @@ void YMW258F::UpdateEnvelopeGenerator(YM::GEW8::channel_t& Channel)
 	if (Rate != 0)
 	{
 		/* How to calculate the actual rate (OPL4 manual page 23):
-			RATE = (OCT + rate correction) x 2 + F9 + RD
+			RATE = (OCT + RC) x 2 + F9 + RD
 			OCT  = Octave (-7 to +7)
+			RC   = Rate Correction (0 to 14)
 			F9   = Fnum bit 9 (0 or 1)
-			RD   = Rate x 4		
+			RD   = Rate x 4	
+
+			if Rate =  0: RATE = 0
+			if Rate = 15: RATE = 63
 		*/
 		uint32_t ActualRate = 63;
 
 		if (Rate != 15)
 		{
-			ActualRate  = (Rate << 2) + Channel.FNum9;
-			ActualRate += std::clamp<int32_t>(Channel.Octave + Channel.EgRateCorrect, 0, 15) << 1;
+			ActualRate = Rate << 2;
+			
+			if (Channel.EgRateCorrect != 15)
+			{				
+				int32_t Correction = (Channel.Octave + Channel.EgRateCorrect) * 2 + Channel.FNum9;
+				ActualRate = std::clamp<int32_t>(ActualRate + Correction, 0, 63);
+				/* Validation needed: The code above might stall a channel when played on low octaves 
+				
+				Alternatively, ActualRate can be calculated as:
+
+				uint32_t Correction = std::max<int32_t>((Channel.Octave + Channel.EgRateCorrect) * 2 + Channel.FNum9, 0);
+				ActualRate = std::min<int32_t>(ActualRate + Correction, 63);
+				*/
+			}
 		}
 
 		/* Get timer resolution */
