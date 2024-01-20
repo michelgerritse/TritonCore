@@ -18,7 +18,7 @@ See LICENSE.txt in the root directory of this source tree.
 
 	This chip is also known as the Sega MultiPCM (315-5560)
 	- 28 PCM channels
-	- 8-bit, 12-bit and 16-bit linear PCM data
+	- 8-bit and 12-bit linear PCM data
 	- 16-stage pan control
 	- Envelope control
 	- PM and AM LFO (a.k.a vibrato and tremolo)
@@ -387,31 +387,24 @@ int16_t YMW258F::ReadSample(YM::GEW8::channel_t& Channel)
 
 	switch (Channel.Format)
 	{
-	case 0: /* 8-bit PCM */
+	case 0: 
+	case 2: /* 8-bit PCM */
 		Offset = Channel.Start + Channel.SampleCount;
 		Sample = m_Memory[Offset] << 8;
 		break;
 
-	case 1: /* 12-bit PCM */
-		Offset = Channel.Start + ((Channel.SampleCount * 3) / 2);
+	case 1:
+	case 3: /* 12-bit PCM */
+		Offset = Channel.Start + ((Channel.SampleCount / 2) * 3);
 
-		if (Channel.SampleCount & 0x01)
+		if (Channel.SampleCount & 0x01) /* 2nd sample */
 		{
 			Sample = (m_Memory[Offset + 2] << 8) | ((m_Memory[Offset + 1] & 0x0F) << 4);
 		}
-		else
+		else /* 1st sample */
 		{
 			Sample = (m_Memory[Offset + 0] << 8) | (m_Memory[Offset + 1] & 0xF0);
 		}
-		break;
-
-	case 2: /* 16-bit PCM */
-		Offset = Channel.Start + (Channel.SampleCount * 2);
-
-		Sample = (m_Memory[Offset + 0] << 8) | m_Memory[Offset + 1];
-		break;
-
-	case 3: /* Invalid format */
 		break;
 	}
 
