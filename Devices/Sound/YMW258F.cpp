@@ -23,11 +23,11 @@ See LICENSE.txt in the root directory of this source tree.
 	- Envelope control
 	- PM and AM LFO (a.k.a vibrato and tremolo)
 	- Interface up to 4MB of ROM or SRAM (22-bit address bus + 8-bit data bus)
+	- 18-bit accumulator
 	
 	Things to validate:
-	- Envelope resolution (9 vs. 10-bit.. assuming 10)
-	- Envelope attack/decay timings
-	- LFO (vibrato and tremolo) validation
+	- Channel output resolution (assuming 16-bit)
+	- LFO (vibrato and tremolo)
 	- TL interpolation
 
 	Sega banking information provided by Valley Bell:
@@ -180,12 +180,9 @@ void YMW258F::Write(uint32_t Address, uint32_t Data)
 
 	default:
 		/* 
-		Some datasheets (eg. Yamaha PSR-510) indicate the YMW258-F is used to control an external DSP
-		There are also read/write lines (MRD and MWR) which would indicate
-		sample reading / writing from an external CPU.
-		
-		All this would require the extra address lines that are available,
-		since out of the 16 addresses only 3 are used
+		The YMW258-F can be used to control an external LDSP (YM3413).
+		It also has memory read/write lines (MRD and MWR) which would indicate sample reading/writing to/from an external CPU.		
+		This functionality would require extra address lines, out of the 16 available addresses only 3 are known.
 		(There are rumors this chip could do FM as well)
 		*/
 		__debugbreak();
@@ -253,8 +250,12 @@ void YMW258F::WriteChannel(uint8_t ChannelNr, uint8_t Register, uint8_t Data)
 	case 0x05: /* Total level / Level direct */
 		/* The OPL4 manual page 18 states the weighting for each TL bit as:
 		   24dB - 12dB - 6dB - 3dB - 1.5dB - 0.75dB - 0.375dB
+
+		   If all TL bits are set, TL is -95.625dB (validation needed)
+		   This "fixes" the out fading tracks in Virtua Racing
 		*/
 		Channel.TargetTL = Data >> 1;
+		Channel.TargetTL |= (Channel.TargetTL + 1) & 0x80;
 
 		/* Level direct */
 		if (Data & 0x01) Channel.TotalLevel = Channel.TargetTL;
@@ -288,7 +289,7 @@ void YMW258F::WriteChannel(uint8_t ChannelNr, uint8_t Register, uint8_t Data)
 void YMW258F::LoadWaveTable(YM::GEW8::channel_t& Channel)
 {
 	/* Read wave table header. Each header is 12-bytes */
-	uint32_t Offset = Channel.WaveNr.u16 * 12;
+	size_t Offset = Channel.WaveNr.u16 * 12;
 
 	/* Wave format (2-bit) */
 	Channel.Format = m_Memory[Offset] >> 6;
@@ -370,28 +371,26 @@ void YMW258F::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer
 			OutR += Channel.OutputR;
 		}
 
-		/* Limiter (signed 16-bit) */
-		OutL = std::clamp(OutL, -32768, 32767);
-		OutR = std::clamp(OutR, -32768, 32767);
+		/* Limiter (signed 18-bit) */
+		OutL = std::clamp(OutL, -131072, 131071);
+		OutR = std::clamp(OutR, -131072, 131071);
 
-		/* 16-bit DAC output (interleaved) */
-		OutBuffer[AudioOut::GEW8]->WriteSampleS16(OutL);
-		OutBuffer[AudioOut::GEW8]->WriteSampleS16(OutR);
+		/* Note: The accumulator is 18-bit, we only output the MSB 16-bits */
+		OutBuffer[AudioOut::GEW8]->WriteSampleS16(OutL >> 2);
+		OutBuffer[AudioOut::GEW8]->WriteSampleS16(OutR >> 2);
 	}
 }
 
 int16_t YMW258F::ReadSample(YM::GEW8::channel_t& Channel)
 {
-	uint32_t Offset;
-	int16_t Sample = 0;
+	size_t Offset;
 
 	switch (Channel.Format)
 	{
 	case 0: 
 	case 2: /* 8-bit PCM */
 		Offset = Channel.Start + Channel.SampleCount;
-		Sample = m_Memory[Offset] << 8;
-		break;
+		return m_Memory[Offset] << 8;
 
 	case 1:
 	case 3: /* 12-bit PCM */
@@ -399,16 +398,16 @@ int16_t YMW258F::ReadSample(YM::GEW8::channel_t& Channel)
 
 		if (Channel.SampleCount & 0x01) /* 2nd sample */
 		{
-			Sample = (m_Memory[Offset + 2] << 8) | ((m_Memory[Offset + 1] & 0x0F) << 4);
+			return (m_Memory[Offset + 2] << 8) | ((m_Memory[Offset + 1] & 0x0F) << 4);
 		}
 		else /* 1st sample */
 		{
-			Sample = (m_Memory[Offset + 0] << 8) | (m_Memory[Offset + 1] & 0xF0);
+			return (m_Memory[Offset + 0] << 8) | (m_Memory[Offset + 1] & 0xF0);
 		}
 		break;
 	}
 
-	return Sample;
+	return 0;
 }
 
 void YMW258F::UpdateLFO(YM::GEW8::channel_t& Channel)
@@ -510,7 +509,7 @@ void YMW258F::UpdateEnvelopeGenerator(YM::GEW8::channel_t& Channel)
 			F9   = Fnum bit 9 (0 or 1)
 			RD   = Rate x 4	
 
-			if Rate =  0: RATE = 0
+			if Rate = 0 : RATE = 0
 			if Rate = 15: RATE = 63
 		*/
 		uint32_t ActualRate = 63;
@@ -522,14 +521,8 @@ void YMW258F::UpdateEnvelopeGenerator(YM::GEW8::channel_t& Channel)
 			if (Channel.EgRateCorrect != 15)
 			{				
 				int32_t Correction = (Channel.Octave + Channel.EgRateCorrect) * 2 + Channel.FNum9;
-				ActualRate = std::clamp<int32_t>(ActualRate + Correction, 0, 63);
-				/* Validation needed: The code above might stall a channel when played on low octaves 
-				
-				Alternatively, ActualRate can be calculated as:
-
-				uint32_t Correction = std::max<int32_t>((Channel.Octave + Channel.EgRateCorrect) * 2 + Channel.FNum9, 0);
-				ActualRate = std::min<int32_t>(ActualRate + Correction, 63);
-				*/
+				Correction = std::clamp(Correction, 0, 15);
+				ActualRate = std::clamp(ActualRate + Correction, 0u, 63u);
 			}
 		}
 
@@ -585,7 +578,7 @@ void YMW258F::UpdateEnvelopeGenerator(YM::GEW8::channel_t& Channel)
 	
 	/* Total Level interpolation:
 
-	( (78.2 * 44100) / 1000) / 127 (TL steps) = ~27 samples
+	(( 78.2 * 44100) / 1000) / 127 (TL steps) = ~27 samples
 	((156.4 * 44100) / 1000) / 127 (TL steps) = ~54 samples
 
 	This seems wrong IMHO but those are the numbers mentioned in the OPL4 manual.
@@ -621,9 +614,9 @@ void YMW258F::UpdateMultiplier(YM::GEW8::channel_t& Channel)
 	uint32_t VolumeL = YM::GEW8::ExpTable[AttnL & 0xFF] >> (AttnL >> 8);
 	uint32_t VolumeR = YM::GEW8::ExpTable[AttnR & 0xFF] >> (AttnR >> 8);
 
-	/* Multiply with interpolated sample (14-bit) */
-	Channel.OutputL = (Channel.Sample * VolumeL) >> 15;
-	Channel.OutputR = (Channel.Sample * VolumeR) >> 15;
+	/* Multiply with interpolated sample (16-bit) */
+	Channel.OutputL = (Channel.Sample * VolumeL) >> 13;
+	Channel.OutputR = (Channel.Sample * VolumeR) >> 13;
 }
 
 void YMW258F::CopyToMemory(uint32_t MemoryID, size_t Offset, uint8_t* Data, size_t Size)

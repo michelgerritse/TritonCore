@@ -45,7 +45,7 @@
       <Filter>Devices\Sound\Yamaha\PCMD8</Filter>
     </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YMW258F.h">
-      <Filter>Devices\Sound\Yamaha\AWM</Filter>
+      <Filter>Devices\Sound\Yamaha\GEW</Filter>
     </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YMF278B.h">
       <Filter>Devices\Sound\Yamaha\OPL</Filter>
@@ -121,9 +121,6 @@
     <Filter Include="Devices\Sound\Yamaha\PCMD8">
       <UniqueIdentifier>{58467392-639c-4f71-bab9-6d3cc832e793}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Devices\Sound\Yamaha\AWM">
-      <UniqueIdentifier>{3a629f32-28c9-4a48-97de-1ccaf114992c}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Devices\Sound\Yamaha\OPL">
       <UniqueIdentifier>{a691df57-97d6-4e23-9a11-d59695be8c5e}</UniqueIdentifier>
     </Filter>
@@ -151,6 +148,9 @@
     <Filter Include="Devices\DAC\Yamaha">
       <UniqueIdentifier>{aa8c3f92-aa97-4a01-9f33-38ad3ba67119}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Devices\Sound\Yamaha\GEW">
+      <UniqueIdentifier>{3a629f32-28c9-4a48-97de-1ccaf114992c}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\ADPCM.cpp">
@@ -172,7 +172,7 @@
       <Filter>Devices\Sound\Yamaha\PCMD8</Filter>
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\YMW258F.cpp">
-      <Filter>Devices\Sound\Yamaha\AWM</Filter>
+      <Filter>Devices\Sound\Yamaha\GEW</Filter>
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\YMF278B.cpp">
       <Filter>Devices\Sound\Yamaha\OPL</Filter>
