@@ -543,23 +543,6 @@ namespace OPN /* FM Operator Type-N */
 	}
 } // namespace OPN
 
-namespace PCMD8
-{
-	/* Pan attenuation (left) table */
-	static const uint32_t PanAttnL[16] =
-	{
-		0, 0, 0, 0, 0, 0, 0, 0,
-		0, 8, 16, 24, 32, 40, 48, 127
-	};
-
-	/* Pan attenuation (right) table */
-	static const uint32_t PanAttnR[16] =
-	{
-		0, 127, 48, 40, 32, 24, 16, 8,
-		0, 0, 0, 0, 0, 0, 0, 0		
-	};
-} // namespace PCMD8
-
 } // namespace YM
 
 #endif // !_YM_H_

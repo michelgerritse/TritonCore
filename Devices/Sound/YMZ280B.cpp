@@ -13,7 +13,6 @@ See LICENSE.txt in the root directory of this source tree.
 */
 #include "YMZ280B.h"
 #include "ADPCM.h"
-#include "YM.h"
 
 /*
 	Yamaha YMZ280B (PCMD8) 8-Channel PCM/ADPCM Decoder
@@ -21,6 +20,7 @@ See LICENSE.txt in the root directory of this source tree.
 	- 4-bit ADPCM, 8-bit PCM or 16-bit PCM sample format
 	- 256-step level control
 	- 16-level pan per channel
+	- 16-bit 2's complement MSB-first serial output to DAC
 
 	This LSI comes in the following package:
 	- 64-pin QFP (YMZ280B-F)
@@ -29,18 +29,34 @@ See LICENSE.txt in the root directory of this source tree.
 	- Loop start address can not be changed when in 4-bit ADPCM mode and already looping (see manual page 10)
 	- All other registers can be rewritten at any time (see manual page 10)
 
-	Validation needed:
-	- How is total level and pan actually handled ? Current implementation is probably wrong
-
 	Things to do:
-	- Implement a read interface
-	- IRQ handling
+	- Validate pan levels
+	- Status register and IRQ handling
 	- Optional: a DSP interface ?
-
 */
 
-YMZ280B::YMZ280B() :
-	m_ClockSpeed(16934400), /* Use the internal clock if no external clock is connected */
+/* Audio output enumeration */
+enum AudioOut
+{
+	PCMD8 = 0
+};
+
+/* Pan attenuation (left) table */
+static const uint32_t PanAttnL[16] =
+{
+	0, 0, 0, 0, 0, 0, 0, 0,
+	0, 3, 7, 15, 31, 63, 127, 255
+};
+
+/* Pan attenuation (right) table */
+static const uint32_t PanAttnR[16] =
+{
+	0, 255, 127, 63, 31, 15, 7, 3,
+	0, 0, 0, 0, 0, 0, 0, 0
+};
+
+YMZ280B::YMZ280B(uint32_t ClockSpeed) :
+	m_ClockSpeed(ClockSpeed),
 	m_ClockDivider(192)
 {
 	/* Set memory size to 16MB */
@@ -64,6 +80,7 @@ void YMZ280B::Reset(ResetType Type)
 	m_KeyEnabled = 0;
 	m_MemEnabled = 0;
 	m_IrqEnabled = 0;
+	m_DspEnabled = 0;
 	m_LsiTest = 0;
 
 	/* Clear channel registers  */
@@ -83,7 +100,7 @@ void YMZ280B::SendExclusiveCommand(uint32_t Command, uint32_t Value)
 
 bool YMZ280B::EnumAudioOutputs(uint32_t OutputNr, AUDIO_OUTPUT_DESC& Desc)
 {
-	if (OutputNr == 0)
+	if (OutputNr == AudioOut::PCMD8)
 	{
 		Desc.SampleRate = m_ClockSpeed / m_ClockDivider;
 		Desc.SampleFormat = 0;
@@ -107,11 +124,35 @@ uint32_t YMZ280B::GetClockSpeed()
 	return m_ClockSpeed;
 }
 
+uint32_t YMZ280B::Read(uint32_t Address)
+{
+	if ((Address & 0x01) == 0) /* External memory read mode */
+	{
+		uint8_t Data = 0;
+		
+		if (m_MemEnabled)
+		{
+			Data = m_Memory[m_MemAddress.u32];
+
+			/* Auto increment RAM address */
+			m_MemAddress.u32 = (m_MemAddress.u32 + 1) & 0x00FFFFFF;
+		}
+		
+		return Data;
+	}
+	else /* Status read mode */
+	{
+		//TODO
+	}
+
+	return 0;
+}
+
 void YMZ280B::Write(uint32_t Address, uint32_t Data)
 {
 	Data &= 0xFF; /* 8-bit data bus */
 	
-	if (Address & 1) /* Data write mode (A0 = H) */
+	if (Address & 0x01) /* Data write mode (A0 = H) */
 	{
 		WriteRegister(m_AddressLatch, Data);
 	}
@@ -121,7 +162,7 @@ void YMZ280B::Write(uint32_t Address, uint32_t Data)
 	}
 }
 
-void YMZ280B::WriteRegister(uint32_t Address, uint32_t Data)
+void YMZ280B::WriteRegister(uint8_t Address, uint8_t Data)
 {
 	if ((Address & 0x80) == 0) /* Function Registers (0x00 - 0x7F) */
 	{
@@ -146,8 +187,8 @@ void YMZ280B::WriteRegister(uint32_t Address, uint32_t Data)
 			break;
 
 		case 0x03: /* Panpot */
-			Channel.PanAttnL = YM::PCMD8::PanAttnL[Data & 0x0F];
-			Channel.PanAttnR = YM::PCMD8::PanAttnR[Data & 0x0F];
+			Channel.PanAttnL = PanAttnL[Data & 0x0F];
+			Channel.PanAttnR = PanAttnR[Data & 0x0F];
 			break;
 
 		case 0x20: /* Start address (H) */
@@ -217,7 +258,7 @@ void YMZ280B::WriteRegister(uint32_t Address, uint32_t Data)
 			break;
 
 		case 0x81: /* DSP enable */
-			/* Not implemented */
+			m_DspEnabled = Data & 0x01;
 			break;
 
 		case 0x82: /* DSP data */
@@ -254,15 +295,12 @@ void YMZ280B::WriteRegister(uint32_t Address, uint32_t Data)
 			m_KeyEnabled = (Data >> 7) & 0x01;
 			m_MemEnabled = (Data >> 6) & 0x01;
 			m_IrqEnabled = (Data >> 4) & 0x01;
-			m_LsiTest = Data & 0x03;
+			m_LsiTest    = (Data >> 0) & 0x03;
 
 			/* Forcibly key off all channels */
 			if (m_KeyEnabled == 0)
 			{
-				for (auto i = 0; i < 8; i++)
-				{
-					ProcessKeyOnOff(m_Channel[i], 0);
-				}
+				for (auto& Channel : m_Channel) ProcessKeyOnOff(Channel, 0);
 			}
 			break;
 
@@ -282,14 +320,13 @@ void YMZ280B::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer
 
 	int32_t OutL;
 	int32_t OutR;
-	int16_t Sample;
 
-	while (Samples != 0)
+	while (Samples-- != 0)
 	{
 		OutL = 0;
 		OutR = 0;
 
-		for (CHANNEL& Channel : m_Channel)
+		for (auto& Channel : m_Channel)
 		{
 			if (Channel.KeyOn)
 			{
@@ -309,10 +346,14 @@ void YMZ280B::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer
 					switch (Channel.Mode)
 					{
 						case 0x00: /* Invalid format */
-							/* Do we need to key off the channel ? */
-							/* Should it be possible to get here ? */
+							/*
+								According to the manual (page10):
+								"Ignore mode setting and set to same state as KON=0"
+							*/
+							
 							Channel.SampleT1 = 0;
-							break;
+							Channel.KeyOn = 0;
+							continue;
 
 						case 0x01: /* 4-bit ADPCM format */
 							Channel.SampleT1 = UpdateSample4(Channel);
@@ -329,29 +370,18 @@ void YMZ280B::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer
 				}
 
 				/* Linear sample interpolation */
-				Sample = (((0x200 - Channel.PitchCnt) * Channel.SampleT0) + (Channel.PitchCnt * Channel.SampleT1)) >> 9;
+				int16_t Sample = (((0x200 - Channel.PitchCnt) * Channel.SampleT0) + (Channel.PitchCnt * Channel.SampleT1)) >> 9;
 
-				/* NOTE: Below code handles level and pan control. Current implementation works, but is probably wrong */
-				
-				int32_t AttnL;
-				int32_t AttnR;
-				int16_t OutputL;
-				int16_t OutputR;
+				/* DSP voice data output */
+				//TODO: At this point channel data can be send to the external DSP
 
-				/* Apply pan */
-				AttnL = Channel.TotalLevel - Channel.PanAttnL;
-				AttnR = Channel.TotalLevel - Channel.PanAttnR;
+				/* Apply total level + pan, limit */
+				int32_t LevelL = std::max<int32_t>(Channel.TotalLevel - Channel.PanAttnL, 0);
+				int32_t LevelR = std::max<int32_t>(Channel.TotalLevel - Channel.PanAttnR, 0);
 
-				/* Limit */
-				if (AttnL < 0) AttnL = 0;
-				if (AttnR < 0) AttnR = 0;
-
-				/* Multiply with interpolated sample */
-				OutputL = (Sample * AttnL) / 255;
-				OutputR = (Sample * AttnR) / 255;
-
-				OutL += OutputL;
-				OutR += OutputR;
+				/* Multiply and accumulate (16-bit) */
+				OutL += (Sample * LevelL) >> 8;
+				OutR += (Sample * LevelR) >> 8;
 			}
 		}
 
@@ -360,14 +390,12 @@ void YMZ280B::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer
 		OutR = std::clamp(OutR, -32768, 32767);
 
 		/* 16-bit DAC output (interleaved) */
-		OutBuffer[0]->WriteSampleS16(OutL);
-		OutBuffer[0]->WriteSampleS16(OutR);
-
-		Samples--;
+		OutBuffer[AudioOut::PCMD8]->WriteSampleS16(OutL);
+		OutBuffer[AudioOut::PCMD8]->WriteSampleS16(OutR);
 	}
 }
 
-void YMZ280B::ProcessKeyOnOff(CHANNEL& Channel, uint32_t NewState)
+void YMZ280B::ProcessKeyOnOff(pcmd8_t& Channel, uint32_t NewState)
 {
 	/* Check for state changes */
 	if (Channel.KeyOn != NewState)
@@ -396,7 +424,7 @@ void YMZ280B::ProcessKeyOnOff(CHANNEL& Channel, uint32_t NewState)
 	}
 }
 
-int16_t YMZ280B::UpdateSample4(CHANNEL& Channel)
+int16_t YMZ280B::UpdateSample4(pcmd8_t& Channel)
 {
 	if (Channel.Loop)
 	{
@@ -447,7 +475,7 @@ int16_t YMZ280B::UpdateSample4(CHANNEL& Channel)
 	return Channel.Signal;
 }
 
-int16_t YMZ280B::UpdateSample8(CHANNEL& Channel)
+int16_t YMZ280B::UpdateSample8(pcmd8_t& Channel)
 {
 	if (Channel.Loop)
 	{
@@ -477,7 +505,7 @@ int16_t YMZ280B::UpdateSample8(CHANNEL& Channel)
 	return Sample;
 }
 
-int16_t YMZ280B::UpdateSample16(CHANNEL& Channel)
+int16_t YMZ280B::UpdateSample16(pcmd8_t& Channel)
 {
 	if (Channel.Loop)
 	{
