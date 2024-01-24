@@ -4,7 +4,7 @@
   | || '_| |  _/ _ \ ' \ (__/ _ \ '_/ -_)
   |_||_| |_|\__\___/_||_\___\___/_| \___|
 
-Copyright © 2023, Michel Gerritse
+Copyright © 2024, Michel Gerritse
 All rights reserved.
 
 This source code is available under the BSD-3-Clause license.
@@ -21,18 +21,23 @@ See LICENSE.txt in the root directory of this source tree.
 	- 256-step level control
 	- 16-level pan per channel
 	- 16-bit 2's complement MSB-first serial output to DAC
+	- 0.172 - 44.1kHz (256 steps) playback for 4-bit ADPCM
+	- 0.172 - 88.2kHz (512 steps) playback for 8 and 16-bit
 
 	This LSI comes in the following package:
 	- 64-pin QFP (YMZ280B-F)
 
 	A couple of notes:
-	- Loop start address can not be changed when in 4-bit ADPCM mode and already looping (see manual page 10)
-	- All other registers can be rewritten at any time (see manual page 10)
+	- Loop start address can not be changed when in 4-bit ADPCM mode and already looping (see manual page 10).
+	- All other registers can be rewritten at any time (see manual page 10).
+	- There is a typo in the English manual, stating that $E0 is the IRQ enable/mask register.
+	  This should be $FE and is correct in the Japanese version. Its also correct in the status register section.
 
 	Things to do:
 	- Validate pan levels
-	- Status register and IRQ handling
+	- IRQ handling / interface
 	- Optional: a DSP interface ?
+	- OPtional: a DAC interface ?
 */
 
 /* Audio output enumeration */
@@ -82,6 +87,8 @@ void YMZ280B::Reset(ResetType Type)
 	m_IrqEnabled = 0;
 	m_DspEnabled = 0;
 	m_LsiTest = 0;
+	m_Status = 0;
+	m_IrqMask = 0;
 
 	/* Clear channel registers  */
 	memset(m_Channel, 0, sizeof(m_Channel));
@@ -130,19 +137,24 @@ uint32_t YMZ280B::Read(uint32_t Address)
 	{
 		uint8_t Data = 0;
 		
-		if (m_MemEnabled)
-		{
-			Data = m_Memory[m_MemAddress.u32];
+		if (m_MemEnabled) Data = m_Memory[m_MemAddress.u32];
 
-			/* Auto increment RAM address */
-			m_MemAddress.u32 = (m_MemAddress.u32 + 1) & 0x00FFFFFF;
-		}
+		/* Auto increment RAM address */
+		m_MemAddress.u32 = (m_MemAddress.u32 + 1) & 0x00FFFFFF;
 		
 		return Data;
 	}
 	else /* Status read mode */
 	{
-		//TODO
+		uint8_t Ret = m_Status;
+		m_Status = 0;
+
+		if (m_IrqEnabled)
+		{
+			//TODO: Clear /IRQ line
+		}
+
+		return Ret;
 	}
 
 	return 0;
@@ -258,11 +270,15 @@ void YMZ280B::WriteRegister(uint8_t Address, uint8_t Data)
 			break;
 
 		case 0x81: /* DSP enable */
-			m_DspEnabled = Data & 0x01;
+			m_DspEnabled = Data & 0x01; /* 0: Enable, 1: Disable */
 			break;
 
 		case 0x82: /* DSP data */
-			/* Not implemented */
+			if (m_DspEnabled == 0)
+			{
+				/* Not implemented */
+				__debugbreak();
+			}
 			break;
 
 		case 0x84: /* RAM address (H) */
@@ -278,17 +294,14 @@ void YMZ280B::WriteRegister(uint8_t Address, uint8_t Data)
 			break;
 
 		case 0x87: /* RAM data */
-			if (m_MemEnabled)
-			{
-				m_Memory[m_MemAddress.u32] = Data;
+			if (m_MemEnabled) m_Memory[m_MemAddress.u32] = Data;
 
-				/* Auto increment RAM address */
-				m_MemAddress.u32 = (m_MemAddress.u32 + 1) & 0x00FFFFFF;
-			}
+			/* Auto increment RAM address */
+			m_MemAddress.u32 = (m_MemAddress.u32 + 1) & 0x00FFFFFF;
 			break;
 
-		case 0xE0: /* IRQ enable/mask */
-			/* Not implemented */
+		case 0xFE: /* IRQ enable/mask */
+			m_IrqMask = Data;
 			break;
 
 		case 0xFF: /* Global Key On / Off, Memory enable, IRQ enable, LSI Test */
@@ -298,16 +311,12 @@ void YMZ280B::WriteRegister(uint8_t Address, uint8_t Data)
 			m_LsiTest    = (Data >> 0) & 0x03;
 
 			/* Forcibly key off all channels */
-			if (m_KeyEnabled == 0)
-			{
-				for (auto& Channel : m_Channel) ProcessKeyOnOff(Channel, 0);
-			}
+			if (m_KeyEnabled == 0) for (auto& Channel : m_Channel) ProcessKeyOnOff(Channel, 0);
 			break;
 
 		default:
-			//__debugbreak();
+			__debugbreak();
 			break;
-
 		}
 	}
 }
@@ -325,16 +334,21 @@ void YMZ280B::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer
 	{
 		OutL = 0;
 		OutR = 0;
-
-		for (auto& Channel : m_Channel)
+		
+		for (auto i = 0; i < 8; i++)
 		{
+			auto& Channel = m_Channel[i];
+
 			if (Channel.KeyOn)
 			{
-				/* Update "pitch" generator */
-				Channel.PitchCnt += (Channel.Pitch.u16 + 1);
+				/* Update "pitch" generator (10-bit: 1.9) */
+				if (Channel.Mode == 1)
+					Channel.PitchCnt += Channel.Pitch.u8l + 1; /* 44.1kHz playback limit for ADPCM streams */
+				else
+					Channel.PitchCnt += Channel.Pitch.u16 + 1;
 
-				/* Check for "pitch" overflow */
-				if (Channel.PitchCnt & 0xFE00)
+				/* Check for "pitch" overflow (10-bit: 1.9) */
+				if (Channel.PitchCnt & 0x0200)
 				{
 					/* Remove integer part, keep fractional part */
 					Channel.PitchCnt &= 0x01FF;
@@ -346,34 +360,78 @@ void YMZ280B::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer
 					switch (Channel.Mode)
 					{
 						case 0x00: /* Invalid format */
-							/*
-								According to the manual (page10):
-								"Ignore mode setting and set to same state as KON=0"
-							*/
-							
-							Channel.SampleT1 = 0;
 							Channel.KeyOn = 0;
-							continue;
+							break;
 
 						case 0x01: /* 4-bit ADPCM format */
-							Channel.SampleT1 = UpdateSample4(Channel);
+							if (m_MemEnabled)
+							{
+								/* Load nibble from memory */
+								uint8_t Nibble = (m_Memory[Channel.Addr] >> Channel.NibbleShift) & 0x0F;
+
+								/* Decode ADPCM nibble */
+								YM::ADPCMZ::Decode(Nibble, &Channel.Step, &Channel.Signal);
+							}
+
+							/* Alternate between 1st and 2nd nibble */
+							Channel.NibbleShift ^= 4;
+
+							Channel.SampleT1 = Channel.Signal;
+							Channel.Addr += (Channel.NibbleShift >> 2);
+
+							/* Check if we reached loop start address */
+							if ((Channel.Addr == Channel.LoopStart.u32) && (Channel.NibbleShift != 0))
+							{
+								/* Save decoder state */
+								Channel.LoopSignal = Channel.Signal;
+								Channel.LoopStep = Channel.Step;
+							}
 							break;
 
 						case 0x02: /* 8-bit PCM format */
-							Channel.SampleT1 = UpdateSample8(Channel);
+							if (m_MemEnabled) Channel.SampleT1 = m_Memory[Channel.Addr] << 8;
+							Channel.Addr += 1;
 							break;
 
 						case 0x03: /* 16-bit PCM format */
-							Channel.SampleT1 = UpdateSample16(Channel);
+							if (m_MemEnabled) Channel.SampleT1 = (m_Memory[Channel.Addr + 0] << 8) | m_Memory[Channel.Addr + 1];
+							Channel.Addr += 2;
 							break;
+					}
+
+					if (Channel.Loop) /* Check for loop end address */
+					{
+						if (Channel.Addr >= Channel.LoopEnd.u32)
+						{
+							/* Reload loop start address */
+							Channel.Addr = Channel.LoopStart.u32;
+
+							/* Reload decoder state */
+							Channel.Signal = Channel.LoopSignal;
+							Channel.Step = Channel.LoopStep;
+						}
+					}
+					else /* Check for end address */
+					{
+						if (Channel.Addr >= Channel.End.u32)
+						{
+							/* Auto key off channel */
+							Channel.KeyOn = 0;
+
+							/* Set status flag */
+							m_Status |= (m_IrqMask & (1 << i));
+							//TODO: Asset IRQ line
+						}
 					}
 				}
 
 				/* Linear sample interpolation */
-				int16_t Sample = (((0x200 - Channel.PitchCnt) * Channel.SampleT0) + (Channel.PitchCnt * Channel.SampleT1)) >> 9;
+				uint32_t T0 = 0x200 - Channel.PitchCnt;
+				uint32_t T1 = Channel.PitchCnt;
+				int16_t Sample = ((T0 * Channel.SampleT0) + (T1 * Channel.SampleT1)) >> 9;
 
 				/* DSP voice data output */
-				//TODO: At this point channel data can be send to the external DSP
+				//TODO: At this point channel data can be send to the external YSS225 DSP
 
 				/* Apply total level + pan, limit */
 				int32_t LevelL = std::max<int32_t>(Channel.TotalLevel - Channel.PanAttnL, 0);
@@ -397,6 +455,13 @@ void YMZ280B::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer
 
 void YMZ280B::ProcessKeyOnOff(pcmd8_t& Channel, uint32_t NewState)
 {
+	if (Channel.Mode == 0)
+	{
+		/* According to the manual (page10): "Ignore mode setting and set to same state as KON=0" */
+		Channel.KeyOn = 0;
+		return;
+	}
+	
 	/* Check for state changes */
 	if (Channel.KeyOn != NewState)
 	{
@@ -422,117 +487,6 @@ void YMZ280B::ProcessKeyOnOff(pcmd8_t& Channel, uint32_t NewState)
 
 		Channel.KeyOn = NewState;
 	}
-}
-
-int16_t YMZ280B::UpdateSample4(pcmd8_t& Channel)
-{
-	if (Channel.Loop)
-	{
-		/* Check if we reached loop start address */
-		if (Channel.Addr == Channel.LoopStart.u32)
-		{
-			if (Channel.NibbleShift) /* Make sure we're on the 1st nibble */
-			{
-				/* Save decoder state */
-				Channel.LoopSignal = Channel.Signal;
-				Channel.LoopStep = Channel.Step;
-			}
-		}
-
-		/* Check if we reached loop end address */
-		if (Channel.Addr >= Channel.LoopEnd.u32)
-		{
-			/* Reload loop start address */
-			Channel.Addr = Channel.LoopStart.u32;
-
-			/* Load decoder state */
-			Channel.Signal = Channel.LoopSignal;
-			Channel.Step = Channel.LoopStep;
-		}
-	}
-	else
-	{
-		/* Check if we reached end address */
-		if (Channel.Addr >= Channel.End.u32)
-		{
-			Channel.KeyOn = 0;
-			return 0;
-		}
-	}
-		
-	/* Load nibble from memory */
-	uint8_t Nibble = (m_Memory[Channel.Addr] >> Channel.NibbleShift) & 0x0F;
-
-	/* Alternate between 1st and 2nd nibble */
-	Channel.NibbleShift ^= 4;
-
-	/* Increase address counter */
-	Channel.Addr += (Channel.NibbleShift >> 2);
-
-	/* Decode ADPCM nibble */
-	YM::ADPCMZ::Decode(Nibble, &Channel.Step, &Channel.Signal);
-
-	return Channel.Signal;
-}
-
-int16_t YMZ280B::UpdateSample8(pcmd8_t& Channel)
-{
-	if (Channel.Loop)
-	{
-		/* Check if we reached loop end address */
-		if (Channel.Addr >= Channel.LoopEnd.u32)
-		{
-			/* Reload loop start address */
-			Channel.Addr = Channel.LoopStart.u32;
-		}
-	}
-	else
-	{
-		/* Check if we reached end address */
-		if (Channel.Addr >= Channel.End.u32)
-		{
-			Channel.KeyOn = 0;
-			return 0;
-		}
-	}
-
-	/* Load 8-bit sample from memory */
-	int16_t Sample = m_Memory[Channel.Addr] << 8;
-
-	/* Increase address counter */
-	Channel.Addr += 1;
-
-	return Sample;
-}
-
-int16_t YMZ280B::UpdateSample16(pcmd8_t& Channel)
-{
-	if (Channel.Loop)
-	{
-		/* Check if we reached loop end address */
-		if (Channel.Addr >= Channel.LoopEnd.u32)
-		{
-			/* Reload loop start address */
-			Channel.Addr = Channel.LoopStart.u32;
-		}
-	}
-	else
-	{
-		/* Check if we reached end address */
-		if (Channel.Addr >= Channel.End.u32)
-		{
-			Channel.KeyOn = 0;
-			return 0;
-		}
-	}
-
-	/* Load 16-bit sample from memory */
-	int16_t Sample = (m_Memory[Channel.Addr + 0] << 8) | m_Memory[Channel.Addr + 1];
-
-	/* Increase address counter */
-	Channel.Addr += 2;
-
-	return Sample;
 }
 
 void YMZ280B::CopyToMemory(uint32_t MemoryID, size_t Offset, uint8_t* Data, size_t Size)

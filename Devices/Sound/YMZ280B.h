@@ -71,6 +71,8 @@ private:
 
 	pcmd8_t		m_Channel[8];
 	uint8_t		m_AddressLatch;
+	uint8_t		m_Status;
+	uint8_t		m_IrqMask;
 
 	pair32_t	m_MemAddress;
 	uint32_t	m_KeyEnabled;
@@ -78,7 +80,7 @@ private:
 	uint32_t	m_IrqEnabled;
 	uint32_t	m_DspEnabled;
 	uint32_t	m_LsiTest;
-
+	
 	uint32_t	m_ClockSpeed;
 	uint32_t	m_ClockDivider;
 	uint32_t	m_CyclesToDo;
@@ -87,9 +89,6 @@ private:
 
 	void	WriteRegister(uint8_t Address, uint8_t Data);
 	void	ProcessKeyOnOff(pcmd8_t& Channel, uint32_t NewState);
-	int16_t UpdateSample4(pcmd8_t& Channel);
-	int16_t UpdateSample8(pcmd8_t& Channel);
-	int16_t UpdateSample16(pcmd8_t& Channel);
 };
 
 #endif // !_YMZ280B_H_
