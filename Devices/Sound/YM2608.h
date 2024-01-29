@@ -17,6 +17,7 @@ See LICENSE.txt in the root directory of this source tree.
 #include "../../Interfaces/ISoundDevice.h"
 #include "../../Interfaces/IMemoryAccess.h"
 #include "AY.h"
+#include "YM_OPN.h"
 #include "YM.h"
 
 /* Yamaha YM2608 (OPNA) */
@@ -27,7 +28,7 @@ public:
 	~YM2608() = default;
 
 	/* IDevice methods */
-	const wchar_t* GetDeviceName();
+	const wchar_t*	GetDeviceName();
 	void			Reset(ResetType Type);
 	void			SendExclusiveCommand(uint32_t Command, uint32_t Value);
 

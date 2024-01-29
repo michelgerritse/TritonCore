@@ -16,7 +16,7 @@ See LICENSE.txt in the root directory of this source tree.
 
 #include "../../Interfaces/ISoundDevice.h"
 #include "AY.h"
-#include "YM.h"
+#include "YM_OPN.h"
 
 /* Yamaha YM2203 (OPN) */
 class YM2203 : public ISoundDevice

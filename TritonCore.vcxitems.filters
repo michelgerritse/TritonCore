@@ -101,6 +101,9 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YM_GEW.h">
       <Filter>Devices\Sound\Yamaha</Filter>
     </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YM_OPN.h">
+      <Filter>Devices\Sound\Yamaha</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Interfaces">

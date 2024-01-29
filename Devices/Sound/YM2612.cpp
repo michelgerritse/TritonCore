@@ -618,7 +618,7 @@ void YM2612::UpdateEnvelopeGenerator(uint32_t SlotId)
 	/*-----------------------------*/
 	if ((Slot.EgLevel >> 9) & Slot.SsgEnable)
 	{
-		if (Slot.KeyOn) /* Attack, decay or sustain phase */
+		if (Slot.KeyState) /* Attack, decay or sustain phase */
 		{
 			if (Slot.SsgEgHld) /* Hold mode */
 			{
@@ -919,12 +919,12 @@ void YM2612::ProcessKeyEvent(uint32_t SlotId)
 	auto& Slot = m_OPN.Slot[SlotId];
 
 	/* Get latched key on/off state */
-	uint32_t NewState = (Slot.KeyLatch | Slot.CsmKeyLatch);
+	uint32_t NewState = (Slot.KeyLatch | Slot.CsmLatch);
 
 	/* Clear CSM key on flag */
-	Slot.CsmKeyLatch = 0;
+	Slot.CsmLatch = 0;
 
-	if (Slot.KeyOn ^ NewState)
+	if (Slot.KeyState ^ NewState)
 	{
 		if (NewState) /* Key On */
 		{
@@ -952,7 +952,7 @@ void YM2612::ProcessKeyEvent(uint32_t SlotId)
 			}
 		}
 
-		Slot.KeyOn = NewState;
+		Slot.KeyState = NewState;
 	}
 }
 
@@ -997,10 +997,10 @@ void YM2612::UpdateTimers()
 			if (m_OPN.ModeCSM)
 			{
 				/* CSM Key-On all channel 3 slots */
-				m_OPN.Slot[8 + S1].CsmKeyLatch = 1;
-				m_OPN.Slot[8 + S2].CsmKeyLatch = 1;
-				m_OPN.Slot[8 + S3].CsmKeyLatch = 1;
-				m_OPN.Slot[8 + S4].CsmKeyLatch = 1;
+				m_OPN.Slot[8 + S1].CsmLatch = 1;
+				m_OPN.Slot[8 + S2].CsmLatch = 1;
+				m_OPN.Slot[8 + S3].CsmLatch = 1;
+				m_OPN.Slot[8 + S4].CsmLatch = 1;
 			}
 		}
 	}

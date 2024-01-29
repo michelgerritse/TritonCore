@@ -46,6 +46,7 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YMZ284.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YM_GEW.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YM_OPL.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YM_OPN.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YM_RSS.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Interfaces\IAudioBuffer.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Interfaces\IDevice.h" />

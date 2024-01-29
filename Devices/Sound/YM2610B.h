@@ -17,6 +17,7 @@ See LICENSE.txt in the root directory of this source tree.
 #include "../../Interfaces/ISoundDevice.h"
 #include "../../Interfaces/IMemoryAccess.h"
 #include "AY.h"
+#include "YM_OPN.h"
 #include "YM.h"
 
 /* Yamaha YM2610B (OPNB2) */

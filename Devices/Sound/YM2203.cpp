@@ -787,7 +787,7 @@ void YM2203::UpdateEnvelopeGenerator(uint32_t SlotId)
 	/*-----------------------------*/
 	if ((Slot.EgLevel >> 9) & Slot.SsgEnable)
 	{
-		if (Slot.KeyOn) /* Attack, decay or sustain phase */
+		if (Slot.KeyState) /* Attack, decay or sustain phase */
 		{
 			if (Slot.SsgEgHld) /* Hold mode */
 			{
@@ -896,10 +896,10 @@ void YM2203::UpdateOperatorUnit(uint32_t SlotId)
 	uint32_t Phase = (Slot.PgPhase >> 10) + GetModulation(SlotId);
 
 	/* Attenuation (4.8 + 4.8 = 5.8 fixed point) */
-	uint32_t Level = YM::SineTable[Phase & 0x1FF] + Slot.EgOutput;
+	uint32_t Level = YM::OPN::SineTable[Phase & 0x1FF] + Slot.EgOutput;
 
 	/* dB to linear conversion (13-bit) */
-	int16_t Output = YM::ExpTable[Level & 0xFF] >> (Level >> 8);
+	int16_t Output = YM::OPN::ExpTable[Level & 0xFF] >> (Level >> 8);
 
 	/* Negate output (14-bit) */
 	if (Phase & 0x200) Output = -Output;
@@ -1064,12 +1064,12 @@ void YM2203::ProcessKeyEvent(uint32_t SlotId)
 	auto& Slot = m_OPN.Slot[SlotId];
 
 	/* Get latched key on/off state */
-	uint32_t NewState = (Slot.KeyLatch | Slot.CsmKeyLatch);
+	uint32_t NewState = (Slot.KeyLatch | Slot.CsmLatch);
 
 	/* Clear CSM key on flag */
-	Slot.CsmKeyLatch = 0;
+	Slot.CsmLatch = 0;
 
-	if (Slot.KeyOn ^ NewState)
+	if (Slot.KeyState ^ NewState)
 	{
 		if (NewState) /* Key On */
 		{
@@ -1097,7 +1097,7 @@ void YM2203::ProcessKeyEvent(uint32_t SlotId)
 			}
 		}
 
-		Slot.KeyOn = NewState;
+		Slot.KeyState = NewState;
 	}
 }
 
@@ -1131,10 +1131,10 @@ void YM2203::UpdateTimers()
 			if (m_OPN.ModeCSM)
 			{
 				/* CSM Key-On all channel 3 slots */
-				m_OPN.Slot[8 + S1].CsmKeyLatch = 1;
-				m_OPN.Slot[8 + S2].CsmKeyLatch = 1;
-				m_OPN.Slot[8 + S3].CsmKeyLatch = 1;
-				m_OPN.Slot[8 + S4].CsmKeyLatch = 1;
+				m_OPN.Slot[8 + S1].CsmLatch = 1;
+				m_OPN.Slot[8 + S2].CsmLatch = 1;
+				m_OPN.Slot[8 + S3].CsmLatch = 1;
+				m_OPN.Slot[8 + S4].CsmLatch = 1;
 			}
 		}
 	}

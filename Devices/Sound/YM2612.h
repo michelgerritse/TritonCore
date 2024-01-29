@@ -15,7 +15,7 @@ See LICENSE.txt in the root directory of this source tree.
 #define _YM2612_H_
 
 #include "../../Interfaces/ISoundDevice.h"
-#include "YM.h"
+#include "YM_OPN.h"
 
 /* Yamaha YM2612 (OPN2) */
 class YM2612 : public ISoundDevice
