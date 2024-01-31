@@ -14,29 +14,10 @@ See LICENSE.txt in the root directory of this source tree.
 #ifndef _YM_GEW_H_
 #define _YM_GEW_H_
 
-#include <algorithm>
-#include <cmath>
-#include <numbers>
+#include "YM.h"
 
 namespace YM::GEW8 /* Yamaha - GEW8 */
 {
-	/* Exponent generator */
-	static uint16_t GenerateExponent(uint32_t Value)
-	{
-		/*
-		x = [0:255]
-		y = round((power(2, x / 256) - 1) * 1024)
-
-		The exponent table has been re-constructed from actual YM3812 die shots:
-		https://docs.google.com/document/d/18IGx18NQY_Q1PJVZ-bHywao9bhsDoAqoIn1rIm42nwo
-
-		Credits to Matthew Gambrell and Olli Niemitalo
-		http://yehar.com/blog/?p=665
-		*/
-
-		return (uint16_t)round((exp2(Value / 256.0) - 1) * 1024.0);
-	};
-
 	/* Maximum attenuation level */
 	constexpr uint32_t MaxAttenuation = 0x3FF;
 
@@ -67,14 +48,14 @@ namespace YM::GEW8 /* Yamaha - GEW8 */
 		uint32_t	EgOutputL;		/* Envelope output (left)  (12-bit: 4.8) */
 		uint32_t	EgOutputR;		/* Envelope output (right) (12-bit: 4.8) */
 
-		uint32_t	SampleCount;	/* Sample address (whole part) */
+		uint16_t	SampleCount;	/* Sample address (whole part) */
 		uint32_t	SampleDelta;	/* Sample address (fractional) */
 		uint32_t	PgReset;		/* Phase reset flag */
 
 		uint32_t	Format;			/* Wave format (2-bit) */
 		uint32_t	Start;			/* Start address (22-bit) */
-		uint32_t	Loop;			/* Loop address (16-bit) */
-		uint32_t	End;			/* End address (16-bit) */
+		uint16_t	Loop;			/* Loop address (16-bit) */
+		uint16_t	End;			/* End address (16-bit) */
 
 		uint32_t	LfoCounter;		/* LFO counter */
 		uint32_t	LfoPeriod;		/* LFO period */
@@ -284,7 +265,7 @@ namespace YM::GEW8 /* Yamaha - GEW8 */
 			*/
 			for (uint32_t i = 0; i < 256; i++)
 			{
-				ExpTable[i] = (GenerateExponent(i ^ 0xFF) | 0x400) << 2;
+				ExpTable[i] = (YM::GenerateExponent(i ^ 0xFF) | 0x400) << 2;
 			}
 
 			/* Tremolo table (AM) */

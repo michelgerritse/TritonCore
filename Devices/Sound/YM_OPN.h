@@ -14,46 +14,10 @@ See LICENSE.txt in the root directory of this source tree.
 #ifndef _YM_OPN_H_
 #define _YM_OPN_H_
 
-#include <algorithm>
-#include <cmath>
-#include <numbers>
+#include "YM.h"
 
 namespace YM::OPN /* Yamaha - FM Operator Type-N */
 {
-	/* Sine generator */
-	static uint16_t GenerateSine(uint32_t Value)
-	{
-		/*
-		x = [0:255]
-		y = round(-log(sin((x + 0.5) * pi / 2 / 256)) / log(2) * 256)
-
-		The sine table has been re-constructed from actual YM3812 die shots:
-		https://docs.google.com/document/d/18IGx18NQY_Q1PJVZ-bHywao9bhsDoAqoIn1rIm42nwo
-
-		Credits to Matthew Gambrell and Olli Niemitalo
-		http://yehar.com/blog/?p=665
-		*/
-
-		return (uint16_t)round(-log(sin((Value + 0.5) * std::numbers::pi / 2.0 / 256.0)) / std::numbers::ln2 * 256.0);
-	};
-
-	/* Exponent generator */
-	static uint16_t GenerateExponent(uint32_t Value)
-	{
-		/*
-		x = [0:255]
-		y = round((power(2, x / 256) - 1) * 1024)
-
-		The exponent table has been re-constructed from actual YM3812 die shots:
-		https://docs.google.com/document/d/18IGx18NQY_Q1PJVZ-bHywao9bhsDoAqoIn1rIm42nwo
-
-		Credits to Matthew Gambrell and Olli Niemitalo
-		http://yehar.com/blog/?p=665
-		*/
-
-		return (uint16_t)round((exp2(Value / 256.0) - 1) * 1024.0);
-	};
-
 	/* Maximum attenuation level */
 	constexpr uint32_t MaxAttenuation = 0x3FF;
 
@@ -289,8 +253,8 @@ namespace YM::OPN /* Yamaha - FM Operator Type-N */
 			*/
 			for (uint32_t i = 0; i < 256; i++)
 			{
-				SineTable[i + 000] = GenerateSine(i);
-				SineTable[i + 256] = GenerateSine(i ^ 0xFF);
+				SineTable[i + 000] = YM::GenerateSine(i, 256);
+				SineTable[i + 256] = YM::GenerateSine(i ^ 0xFF, 256);
 
 				ExpTable[i] = (GenerateExponent(i ^ 0xFF) | 0x400) << 2;
 			}

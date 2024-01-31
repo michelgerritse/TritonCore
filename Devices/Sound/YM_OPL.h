@@ -14,51 +14,15 @@ See LICENSE.txt in the root directory of this source tree.
 #ifndef _YM_OPL_H_
 #define _YM_OPL_H_
 
-#include <algorithm>
-#include <cmath>
-#include <numbers>
+#include "YM.h"
 
 namespace YM::OPL /* Yamaha - FM Operator Type-L */
-{
-	/* Sine generator */
-	static uint16_t GenerateSine(uint32_t Value)
-	{
-		/*
-		x = [0:255]
-		y = round(-log(sin((x + 0.5) * pi / 2 / 256)) / log(2) * 256)
-
-		The sine table has been re-constructed from actual YM3812 die shots:
-		https://docs.google.com/document/d/18IGx18NQY_Q1PJVZ-bHywao9bhsDoAqoIn1rIm42nwo
-
-		Credits to Matthew Gambrell and Olli Niemitalo
-		http://yehar.com/blog/?p=665
-		*/
-		
-		return (uint16_t) round(-log(sin((Value + 0.5) * std::numbers::pi / 2.0 / 256.0)) / std::numbers::ln2 * 256.0);
-	};
-
-	/* Exponent generator */
-	static uint16_t GenerateExponent(uint32_t Value)
-	{
-		/*
-		x = [0:255]
-		y = round((power(2, x / 256) - 1) * 1024)
-
-		The exponent table has been re-constructed from actual YM3812 die shots:
-		https://docs.google.com/document/d/18IGx18NQY_Q1PJVZ-bHywao9bhsDoAqoIn1rIm42nwo
-
-		Credits to Matthew Gambrell and Olli Niemitalo
-		http://yehar.com/blog/?p=665
-		*/
-		
-		return (uint16_t) round((exp2(Value / 256.0) - 1) * 1024.0);
-	};
-	
+{	
 	/* Maximum attenuation level */
 	constexpr uint32_t MaxAttenuation = 0x1FF;
 
 	/* Maximum envelope level */
-	constexpr uint32_t MaxEgLevel = MaxAttenuation & ~7;
+	constexpr uint32_t MaxEgLevel = MaxAttenuation & ~((1 << 3) - 1);
 
 	/*
 		This constant defines the total steps of the LFO-AM generator
@@ -328,9 +292,9 @@ namespace YM::OPL /* Yamaha - FM Operator Type-L */
 
 				/* Wave 0: Sine */
 				if ((i & 0x100) == 0)
-					WaveTable[0][i] = GenerateSine(i & 0xFF); /* 1st quarter */
+					WaveTable[0][i] = YM::GenerateSine(i & 0xFF, 256); /* 1st quarter */
 				else
-					WaveTable[0][i] = GenerateSine((i & 0xFF) ^ 0xFF); /* 2nd quarter */
+					WaveTable[0][i] = YM::GenerateSine((i & 0xFF) ^ 0xFF, 256); /* 2nd quarter */
 
 				/* Wave 1: Half-sine */
 				if ((i & 0x200) == 0)
@@ -356,7 +320,7 @@ namespace YM::OPL /* Yamaha - FM Operator Type-L */
 			*/
 			for (uint32_t i = 0; i < 256; i++)
 			{
-				ExpTable[i] = (GenerateExponent(i ^ 0xFF) | 0x400) << 1;
+				ExpTable[i] = (YM::GenerateExponent(i ^ 0xFF) | 0x400) << 1;
 			}
 
 			Initialized = true;

@@ -730,10 +730,10 @@ void YM2612::UpdateOperatorUnit(uint32_t SlotId)
 	uint32_t Phase = (Slot.PgPhase >> 10) + GetModulation(SlotId);
 
 	/* Attenuation (4.8 + 4.8 = 5.8 fixed point) */
-	uint32_t Level = YM::SineTable[Phase & 0x1FF] + Slot.EgOutput;
+	uint32_t Level = YM::OPN::SineTable[Phase & 0x1FF] + Slot.EgOutput;
 
 	/* dB to linear conversion (13-bit) */
-	int16_t Output = YM::ExpTable[Level & 0xFF] >> (Level >> 8);
+	int16_t Output = YM::OPN::ExpTable[Level & 0xFF] >> (Level >> 8);
 
 	/* Negate output (14-bit) */
 	if (Phase & 0x200) Output = -Output;
