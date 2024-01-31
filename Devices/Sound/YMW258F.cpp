@@ -158,7 +158,7 @@ void YMW258F::Write(uint32_t Address, uint32_t Data)
 	
 	switch (Address & 0x0F) /* 4-bit address bus (A0 - A3) */
 	{
-	case 0x00: /* PCM channel data write */
+	case 0x00: /* PCM data write */
 		WriteChannel(m_ChannelLatch, m_RegisterLatch, Data);
 		break;
 
@@ -178,14 +178,11 @@ void YMW258F::Write(uint32_t Address, uint32_t Data)
 		/* Stadium Cross and Title Fight write 0x03 */
 		break;
 
+	case 0x0D: /* LDSP control data */
+		//TODO: Hook up YM3413
+		break;
+
 	default:
-		/* 
-		The YMW258-F can be used to control an external LDSP (YM3413).
-		It also has memory read/write lines (MRD and MWR) which would indicate sample reading/writing to/from an external CPU.		
-		This functionality would require extra address lines, out of the 16 available addresses only 3 are known.
-		(There are rumors this chip could do FM as well)
-		*/
-		__debugbreak();
 		break;
 	}
 }
@@ -217,7 +214,7 @@ void YMW258F::WriteChannel(uint8_t ChannelNr, uint8_t Register, uint8_t Data)
 		Channel.PanAttnL = YM::GEW8::PanAttnL[Data >> 4];
 		Channel.PanAttnR = YM::GEW8::PanAttnR[Data >> 4];
 
-		assert((Data & 0x0F) == 0); /* Test for undocumented bits */
+		//assert((Data & 0x0F) == 0); /* Test for undocumented bits */
 		break;
 
 	case 0x01: /* Wave table number [7:0] */
@@ -227,10 +224,10 @@ void YMW258F::WriteChannel(uint8_t ChannelNr, uint8_t Register, uint8_t Data)
 		break;
 
 	case 0x02: /* Frequency [5:0] / Wave table number [8] */
-		Channel.FNum = (Channel.FNum & 0x3C0) | Data >> 2;
+		Channel.FNum = (Channel.FNum & 0x3C0) | (Data >> 2);
 		Channel.WaveNr.u8h = Data & 0x1;
 
-		assert((Data & 0x02) == 0); /* Test for undocumented bits */
+		//assert((Data & 0x02) == 0); /* Test for undocumented bits */
 		break;
 
 	case 0x03: /* Octave / Frequency [9:6] */
@@ -242,9 +239,13 @@ void YMW258F::WriteChannel(uint8_t ChannelNr, uint8_t Register, uint8_t Data)
 		break;
 
 	case 0x04: /* Channel control */
+		/*
+		b7 = 1: Key on, 0: Key off
+		b3 = 1: DSP send, 0: No DSP send
+		*/
 		Channel.KeyLatch = Data >> 7;
 
-		assert((Data & 0x7F) == 0); /* Test for undocumented bits */
+		//assert((Data & 0x77) == 0); /* Test for undocumented bits */
 		break;
 
 	case 0x05: /* Total level / Level direct */
@@ -265,13 +266,13 @@ void YMW258F::WriteChannel(uint8_t ChannelNr, uint8_t Register, uint8_t Data)
 		Channel.LfoPeriod = YM::GEW8::LfoPeriod[(Data >> 3) & 0x07];
 		Channel.PmDepth = Data & 0x07;
 
-		assert((Data & 0xC0) == 0); /* Test for undocumented bits */
+		//assert((Data & 0xC0) == 0); /* Test for undocumented bits */
 		break;
 
 	case 0x07: /* Tremolo (AM) */
 		Channel.AmDepth = Data & 0x07;
 
-		assert((Data & 0xF8) == 0); /* Test for undocumented bits */
+		//assert((Data & 0x78) == 0); /* Test for undocumented bits */
 		break;
 
 	case 0x08:
@@ -362,7 +363,6 @@ void YMW258F::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer
 		for (auto& Channel : m_Channel)
 		{
 			UpdateLFO(Channel);
-			
 			UpdateEnvelopeGenerator(Channel);
 			UpdateAddressGenerator(Channel);
 			UpdateMultiplier(Channel);
@@ -448,16 +448,19 @@ void YMW258F::UpdateAddressGenerator(YM::GEW8::channel_t& Channel)
 	/* Check for delta overflow */
 	if (Channel.SampleDelta >> 16)
 	{
+		/* Load new sample */
+		Channel.SampleT0 = Channel.SampleT1;
+		Channel.SampleT1 = ReadSample(Channel);
+
 		/* Update sample counter */
 		Channel.SampleCount += (Channel.SampleDelta >> 16);
 		Channel.SampleDelta &= 0xFFFF;
 
 		/* Check for end address */
-		if (Channel.SampleCount >= Channel.End) Channel.SampleCount = Channel.Loop;
-
-		/* Load new sample */
-		Channel.SampleT0 = Channel.SampleT1;
-		Channel.SampleT1 = ReadSample(Channel);
+		if (Channel.SampleCount > Channel.End)
+		{
+			Channel.SampleCount -= (Channel.End - Channel.Loop);
+		}
 	}
 
 	uint32_t T0 = 0x10000 - Channel.SampleDelta;
