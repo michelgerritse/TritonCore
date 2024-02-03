@@ -49,6 +49,9 @@ enum ADSR : uint32_t
 	Release
 };
 
+/* Static class member initialization */
+const std::wstring YMW258F::s_DeviceName = L"Yamaha YMW258-F";
+
 YMW258F::YMW258F(uint32_t ClockSpeed) :
 	m_ClockSpeed(ClockSpeed),
 	m_ClockDivider(224)
@@ -63,19 +66,17 @@ YMW258F::YMW258F(uint32_t ClockSpeed) :
 
 const wchar_t* YMW258F::GetDeviceName()
 {
-	return L"Yamaha YMW258-F";
+	return s_DeviceName.c_str();
 }
 
 void YMW258F::Reset(ResetType Type)
 {
 	m_CyclesToDo = 0;
 
-	/* Reset latches */
+	m_Timer = 0;
 	m_ChannelLatch = 0;
 	m_RegisterLatch = 0;
-
-	/* Reset timers */
-	m_Timer = 0;
+	m_MemoryAddress = 0;
 
 	/* Reset banking (Sega MultiPCM only) */
 	m_Banking = 0;
@@ -159,7 +160,7 @@ void YMW258F::Write(uint32_t Address, uint32_t Data)
 	switch (Address & 0x0F) /* 4-bit address bus (A0 - A3) */
 	{
 	case 0x00: /* PCM data write */
-		WriteChannel(m_ChannelLatch, m_RegisterLatch, Data);
+		WritePcmData(m_ChannelLatch, m_RegisterLatch, Data);
 		break;
 
 	case 0x01: /* PCM channel latch */
@@ -172,22 +173,64 @@ void YMW258F::Write(uint32_t Address, uint32_t Data)
 
 	case 0x03: /* Unknown */
 		/* Virtua Racing writes 0x00 */
+		//__debugbreak();
 		break;
 
-	case 0x09: /* Unknown */
+	case 0x04: /* Unknown */
+		__debugbreak();
+		break;
+
+	case 0x05: /* Unknown */
+		__debugbreak();
+		break;
+
+	case 0x06: /* Unknown */
+		__debugbreak();
+		break;
+
+	case 0x07: /* Unknown */
+		__debugbreak();
+		break;
+
+	case 0x08: /* Unknown */
+		__debugbreak();
+		break;
+
+	case 0x09: /* Memory address (H) ?? */
 		/* Stadium Cross and Title Fight write 0x03 */
+		m_MemoryAddress.u8hl = Data & 0x3F;
+		break;
+
+	case 0x0A: /* Memory address (M) ??  */
+		m_MemoryAddress.u8lh = Data;
+		break;
+
+	case 0x0B: /* Memory address (L) ??  */
+		m_MemoryAddress.u8ll = Data;
+		break;
+
+	case 0x0C: /* Memory data ?? */
+		m_Memory[m_MemoryAddress.u32] = Data;
+
+		/* Address auto increment */
+		m_MemoryAddress.u32 = (m_MemoryAddress.u32 + 1) & 0x3FFFFF;
 		break;
 
 	case 0x0D: /* LDSP control data */
 		//TODO: Hook up YM3413
 		break;
 
-	default:
+	case 0x0E: /* Unknown */
+		__debugbreak();
+		break;
+
+	case 0x0F: /* Unknown */
+		__debugbreak();
 		break;
 	}
 }
 
-void YMW258F::WriteChannel(uint8_t ChannelNr, uint8_t Register, uint8_t Data)
+void YMW258F::WritePcmData(uint8_t ChannelNr, uint8_t Register, uint8_t Data)
 {
 	/*	Channel mapping:
 		0x00: 00	0x08: 07	0x10: 14	0x18: 21
@@ -208,7 +251,7 @@ void YMW258F::WriteChannel(uint8_t ChannelNr, uint8_t Register, uint8_t Data)
 
 	auto& Channel = m_Channel[ChannelNr - (ChannelNr >> 3)];
 
-	switch (Register & 0x0F) /* Are registers mirrored ? */
+	switch (Register)
 	{
 	case 0x00: /* Pan */
 		Channel.PanAttnL = YM::GEW8::PanAttnL[Data >> 4];
@@ -221,6 +264,10 @@ void YMW258F::WriteChannel(uint8_t ChannelNr, uint8_t Register, uint8_t Data)
 		Channel.WaveNr.u8l = Data;	
 		
 		LoadWaveTable(Channel);
+
+		/* Reset address counter after loading a wave bank */
+		Channel.ReadAddr = 0;
+
 		break;
 
 	case 0x02: /* Frequency [5:0] / Wave table number [8] */
@@ -235,15 +282,12 @@ void YMW258F::WriteChannel(uint8_t ChannelNr, uint8_t Register, uint8_t Data)
 		Channel.FNum9 = Channel.FNum >> 9;
 		Channel.Octave = ((Data >> 4) ^ 8) - 8; /* Sign extend [range = +7 : -8] */
 		
-		assert(Channel.Octave != -8);
+		//assert(Channel.Octave != -8);
 		break;
 
 	case 0x04: /* Channel control */
-		/*
-		b7 = 1: Key on, 0: Key off
-		b3 = 1: DSP send, 0: No DSP send
-		*/
-		Channel.KeyLatch = Data >> 7;
+		Channel.KeyLatch = (Data >> 7) & 0x01;
+		Channel.DspSend  = (Data >> 3) & 0x01;
 
 		//assert((Data & 0x77) == 0); /* Test for undocumented bits */
 		break;
@@ -275,14 +319,24 @@ void YMW258F::WriteChannel(uint8_t ChannelNr, uint8_t Register, uint8_t Data)
 		//assert((Data & 0x78) == 0); /* Test for undocumented bits */
 		break;
 
-	case 0x08:
-	case 0x09: /* Virtua Racing writes 0x0F for all channels */
-	case 0x0A: /* Virtua Racing writes 0x07 for some channels */
-	case 0x0B:
-	case 0x0C:
-	case 0x0D:
-	case 0x0E:
-	case 0x0F:
+	case 0x08: /* Unknown */
+		//__debugbreak();
+		break;
+
+	case 0x09: /* Unknown */
+		/* Virtua Racing writes 0x0F for all channels */
+		/* TG100 demo writes 0xFF for all channels */
+		//__debugbreak();
+		break;
+
+	case 0x0A: /* Unknown */
+		/* Virtua Racing writes 0x07 for some channels */
+		/* TG100 demo writes 0x02 for some channels */
+		//__debugbreak();
+		break;
+	
+	default:
+		__debugbreak();
 		break;
 	}
 }
@@ -296,13 +350,13 @@ void YMW258F::LoadWaveTable(YM::GEW8::channel_t& Channel)
 	Channel.Format = m_Memory[Offset] >> 6;
 
 	/* Start address (22-bit) */
-	Channel.Start = ((m_Memory[Offset] << 16) | (m_Memory[Offset + 1] << 8) | m_Memory[Offset + 2]) & 0x3FFFFF;
+	Channel.StartAddr = ((m_Memory[Offset] << 16) | (m_Memory[Offset + 1] << 8) | m_Memory[Offset + 2]) & 0x3FFFFF;
 
 	/* Loop address (16-bit) */
-	Channel.Loop = (m_Memory[Offset + 3] << 8) | m_Memory[Offset + 4];
+	Channel.LoopAddr = (m_Memory[Offset + 3] << 8) | m_Memory[Offset + 4];
 
 	/* End address (16-bit) */
-	Channel.End = 0x10000 - ((m_Memory[Offset + 5] << 8) | m_Memory[Offset + 6]);
+	Channel.EndAddr = 0x10000 - ((m_Memory[Offset + 5] << 8) | m_Memory[Offset + 6]);
 
 	/* LFO (3-bit) + Vibrato (3-bit) */
 	Channel.LfoPeriod = YM::GEW8::LfoPeriod[(m_Memory[Offset + 7] >> 3) & 0x07];
@@ -329,15 +383,15 @@ void YMW258F::LoadWaveTable(YM::GEW8::channel_t& Channel)
 	/* Appply banking (Sega MultiPCM only) */
 	if (m_Banking)
 	{
-		if (Channel.Start & 0x100000)
+		if (Channel.StartAddr & 0x100000)
 		{
-			if (Channel.Start & 0x080000)
+			if (Channel.StartAddr & 0x080000)
 			{
-				Channel.Start = (Channel.Start & 0x7FFFF) | m_Bank1;
+				Channel.StartAddr = (Channel.StartAddr & 0x7FFFF) | m_Bank1;
 			}
 			else
 			{
-				Channel.Start = (Channel.Start & 0x7FFFF) | m_Bank0;
+				Channel.StartAddr = (Channel.StartAddr & 0x7FFFF) | m_Bank0;
 			}
 		}
 	}
@@ -381,35 +435,6 @@ void YMW258F::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer
 	}
 }
 
-int16_t YMW258F::ReadSample(YM::GEW8::channel_t& Channel)
-{
-	size_t Offset;
-
-	switch (Channel.Format)
-	{
-	case 0: 
-	case 2: /* 8-bit PCM */
-		Offset = Channel.Start + Channel.SampleCount;
-		return m_Memory[Offset] << 8;
-
-	case 1:
-	case 3: /* 12-bit PCM */
-		Offset = Channel.Start + ((Channel.SampleCount / 2) * 3);
-
-		if (Channel.SampleCount & 0x01) /* 2nd sample */
-		{
-			return (m_Memory[Offset + 2] << 8) | ((m_Memory[Offset + 1] & 0x0F) << 4);
-		}
-		else /* 1st sample */
-		{
-			return (m_Memory[Offset + 0] << 8) | (m_Memory[Offset + 1] & 0xF0);
-		}
-		break;
-	}
-
-	return 0;
-}
-
 void YMW258F::UpdateLFO(YM::GEW8::channel_t& Channel)
 {
 	if (++Channel.LfoCounter >= Channel.LfoPeriod)
@@ -424,12 +449,10 @@ void YMW258F::UpdateLFO(YM::GEW8::channel_t& Channel)
 
 void YMW258F::UpdateAddressGenerator(YM::GEW8::channel_t& Channel)
 {
-	/* Reset address counter */
 	if (Channel.PgReset)
 	{
-		/* Reset sample counter */
-		Channel.SampleCount = 0;
-		Channel.SampleDelta = 0;
+		/* Reset address counter */
+		Channel.ReadAddr = 0;
 
 		/* Reset sample interpolation */
 		Channel.SampleT0 = 0;
@@ -443,30 +466,51 @@ void YMW258F::UpdateAddressGenerator(YM::GEW8::channel_t& Channel)
 	uint32_t Inc = ((1024 + Channel.FNum + Vibrato) << (8 + Channel.Octave)) >> 3;
 
 	/* Update address counter (16.16) */
-	Channel.SampleDelta += Inc;
+	uint16_t OldAddr = Channel.ReadAddr.u16h;
+	Channel.ReadAddr.u32 += Inc;
 
 	/* Check for delta overflow */
-	if (Channel.SampleDelta >> 16)
+	if (Channel.ReadAddr.u16h != OldAddr)
 	{
+		size_t Offset;
+		
 		/* Load new sample */
 		Channel.SampleT0 = Channel.SampleT1;
-		Channel.SampleT1 = ReadSample(Channel);
 
-		/* Update sample counter */
-		Channel.SampleCount += (Channel.SampleDelta >> 16);
-		Channel.SampleDelta &= 0xFFFF;
-
-		/* Check for end address */
-		if (Channel.SampleCount > Channel.End)
+		switch (Channel.Format)
 		{
-			Channel.SampleCount -= (Channel.End - Channel.Loop);
+		case 0:
+		case 2: /* 8-bit PCM */
+			Offset = Channel.StartAddr + OldAddr;
+			Channel.SampleT1 = m_Memory[Offset] << 8;
+			break;
+
+		case 1:
+		case 3: /* 12-bit PCM */
+			Offset = Channel.StartAddr + ((OldAddr / 2) * 3);
+
+			if (OldAddr & 0x01) /* 2nd sample */
+			{
+				Channel.SampleT1 = (m_Memory[Offset + 2] << 8) | ((m_Memory[Offset + 1] & 0x0F) << 4);
+			}
+			else /* 1st sample */
+			{
+				Channel.SampleT1 = (m_Memory[Offset + 0] << 8) | (m_Memory[Offset + 1] & 0xF0);
+			}
+			break;
+		}
+
+		/* Check if we reached or exceeded the end address */
+		if (Channel.ReadAddr.u16h >= Channel.EndAddr)
+		{
+			Channel.ReadAddr.u16h -= (Channel.EndAddr - Channel.LoopAddr);
 		}
 	}
 
-	uint32_t T0 = 0x10000 - Channel.SampleDelta;
-	uint32_t T1 = Channel.SampleDelta;
-
 	/* Linear sample interpolation */
+	uint32_t T0 = 0x10000 - Channel.ReadAddr.u16l;
+	uint32_t T1 = Channel.ReadAddr.u16l;
+
 	Channel.Sample = ((T0 * Channel.SampleT0) + (T1 * Channel.SampleT1)) >> 16;
 }
 
@@ -525,7 +569,7 @@ void YMW258F::UpdateEnvelopeGenerator(YM::GEW8::channel_t& Channel)
 			{				
 				int32_t Correction = (Channel.Octave + Channel.EgRateCorrect) * 2 + Channel.FNum9;
 				Correction = std::clamp(Correction, 0, 15);
-				ActualRate = std::clamp(ActualRate + Correction, 0u, 63u);
+				ActualRate = std::min(ActualRate + Correction, 63u);
 			}
 		}
 

@@ -22,7 +22,7 @@ See LICENSE.txt in the root directory of this source tree.
 class YMW258F : public ISoundDevice, public IMemoryAccess
 {
 public:
-	YMW258F(uint32_t ClockSpeed = 9'400'000); /* Clock taken from PSR510 service manual */
+	YMW258F(uint32_t ClockSpeed = 9'400'000); /* Default clock taken from PSR510 service manual */
 	~YMW258F() = default;
 
 	/* IDevice methods */
@@ -42,12 +42,14 @@ public:
 	void			CopyToMemoryIndirect(uint32_t MemoryID, size_t Offset, uint8_t* Data, size_t Size);
 
 private:
+	static const std::wstring s_DeviceName;
 	
 	YM::GEW8::channel_t	m_Channel[28];
 
 	uint8_t		m_ChannelLatch;		/* PCM address latch */
 	uint8_t		m_RegisterLatch;	/* PCM register latch */
 	uint32_t	m_Timer;			/* Global timer */
+	pair32_t	m_MemoryAddress;	/* External memory address (22-bit) */
 	
 	uint32_t	m_ClockSpeed;
 	uint32_t	m_ClockDivider;
@@ -59,9 +61,8 @@ private:
 
 	std::vector<uint8_t> m_Memory;
 
-	void	WriteChannel(uint8_t ChannelNr, uint8_t Register, uint8_t Data);
+	void	WritePcmData(uint8_t ChannelNr, uint8_t Register, uint8_t Data);
 	void	LoadWaveTable(YM::GEW8::channel_t& Channel);
-	int16_t ReadSample(YM::GEW8::channel_t& Channel);
 	
 	void	UpdateLFO(YM::GEW8::channel_t& Channel);
 	void	UpdateAddressGenerator(YM::GEW8::channel_t& Channel);

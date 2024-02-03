@@ -30,7 +30,11 @@ namespace YM::GEW8 /* Yamaha - GEW8 */
 		uint32_t	KeyState;		/* Key on/off state */
 		uint32_t	KeyLatch;		/* Latched key on/off flag */
 		
+		uint32_t	DspSend;		/* DSP channel routing flag */
+		
 		pair16_t	WaveNr;			/* Wave table number (9-bit) */
+		uint32_t	Format;			/* Wave format (2-bit) */
+
 		uint32_t	FNum;			/* Frequency number (10-bit) */
 		uint32_t	FNum9;			/* Copy of FNum bit 9 */
 		int32_t		Octave;			/* Octave (signed 4-bit) */
@@ -48,14 +52,12 @@ namespace YM::GEW8 /* Yamaha - GEW8 */
 		uint32_t	EgOutputL;		/* Envelope output (left)  (12-bit: 4.8) */
 		uint32_t	EgOutputR;		/* Envelope output (right) (12-bit: 4.8) */
 
-		uint16_t	SampleCount;	/* Sample address (whole part) */
-		uint32_t	SampleDelta;	/* Sample address (fractional) */
 		uint32_t	PgReset;		/* Phase reset flag */
 
-		uint32_t	Format;			/* Wave format (2-bit) */
-		uint32_t	Start;			/* Start address (22-bit) */
-		uint16_t	Loop;			/* Loop address (16-bit) */
-		uint16_t	End;			/* End address (16-bit) */
+		pair32_t	ReadAddr;		/* Read address (32-bit: 16.16) */
+		uint32_t	StartAddr;		/* Start address (22-bit) */
+		uint16_t	LoopAddr;		/* Loop address (16-bit) */
+		uint16_t	EndAddr;		/* End address (16-bit) */
 
 		uint32_t	LfoCounter;		/* LFO counter */
 		uint32_t	LfoPeriod;		/* LFO period */
