@@ -1,6 +1,5 @@
 # TritonCore
 TritonCore is a set of emulation cores (and some helper utilities) for various devices written in C++ by Michel Gerritse.
-It is part of project Triton, which is not ready for public release yet.
 
 ## Emulated Devices
 The following sound devices are emulated:
@@ -10,7 +9,7 @@ The following sound devices are emulated:
 - Sega 32X PWM
 - SegaPCM
 - Texas Instruments SN76489 (family/clones)
-- Yamaha Y8950 (MSX-Audio)
+- Yamaha Y8950 (a.k.a. MSX-Audio)
 - Yamaha YM2203
 - Yamaha YM2608
 - Yamaha YM2610(B)
@@ -18,7 +17,7 @@ The following sound devices are emulated:
 - Yamaha YM3526
 - Yamaha YM3812
 - Yamaha YMF278B (PCM only at this moment)
-- Yamaha YMW258F
+- Yamaha YMW258F (a.k.a. MultiPCM)
 - Yamaha YMZ280B
 
 More devices will be added in the future.
@@ -37,6 +36,6 @@ Please see [LICENSE.txt](LICENSE.txt).
 ## Thanks
 I would like to thank:
 - [Valley Bell](https://github.com/ValleyBell/libvgm)
-- The folks at [VGMRips](https://vgmrips.net/packs/)
-- [nukeykt](https://github.com/nukeykt) 
+- [nukeykt](https://github.com/nukeykt)
+- The folks at [VGMRips](https://vgmrips.net/packs/) and [SpritesMind.Net](https://gendev.spritesmind.net/forum/index.php)
 - The development team of [MAME](https://www.mamedev.org/)
