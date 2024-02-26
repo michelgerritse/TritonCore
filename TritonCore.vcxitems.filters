@@ -104,6 +104,9 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YM_OPN.h">
       <Filter>Devices\Sound\Yamaha</Filter>
     </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\DSP\YM3413.h">
+      <Filter>Devices\DSP\Yamaha</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Interfaces">
@@ -153,6 +156,12 @@
     </Filter>
     <Filter Include="Devices\Sound\Yamaha\GEW">
       <UniqueIdentifier>{3a629f32-28c9-4a48-97de-1ccaf114992c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Devices\DSP">
+      <UniqueIdentifier>{b6e69446-760e-49cc-bd6b-148e5d78c587}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Devices\DSP\Yamaha">
+      <UniqueIdentifier>{84d8de1a-abd2-4fe0-a5c7-3e8ea8c9c7d4}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -215,6 +224,9 @@
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\DAC\YM3014.cpp">
       <Filter>Devices\DAC\Yamaha</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\DSP\YM3413.cpp">
+      <Filter>Devices\DSP\Yamaha</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
