@@ -89,6 +89,31 @@ void YM3413::ResetCommandCounter()
 
 void YM3413::SendCommandData(uint8_t Command)
 {
+	/*
+	The command data format is unknown, the following command sequences are observed:
+		0x00 - 0x80
+		0x03 - 0x07
+		0x00 - 0x80
+		0x02 - 0x2A
+		0x00 - 0x80
+		0x04 - 0x00
+		0x00 - 0x80
+		0x02 - 0x2D
+		0x00 - 0x80
+		0x04 - 0x00
+		0x00 - 0x80
+		0x02 - 0x2B
+		0x00 - 0x80
+		0x04 - 0x40
+		0x00 - 0x80
+		0x02 - 0x2E
+		0x00 - 0x80
+		0x04 - 0x40
+		0x06 - 0xFF
+
+	Later on in the TG100 demo VGM, a similar sequence is written but ends with:
+		0x06 - 0xFA
+	*/
 }
 
 void YM3413::SendSerialInput0(int16_t ChL, int16_t ChR)
@@ -97,4 +122,16 @@ void YM3413::SendSerialInput0(int16_t ChL, int16_t ChR)
 
 void YM3413::SendSerialInput1(int16_t ChL, int16_t ChR)
 {
+}
+
+void YM3413::GetSerialOutput0(int16_t* pChL, int16_t* pChR)
+{
+	*pChL = 0;
+	*pChR = 0;
+}
+
+void YM3413::GetSerialOutput1(int16_t* pChL, int16_t* pChR)
+{
+	*pChL = 0;
+	*pChR = 0;
 }

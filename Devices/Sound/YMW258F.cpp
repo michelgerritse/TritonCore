@@ -52,9 +52,10 @@ enum ADSR : uint32_t
 /* Static class member initialization */
 const std::wstring YMW258F::s_DeviceName = L"Yamaha YMW258-F";
 
-YMW258F::YMW258F(uint32_t ClockSpeed) :
+YMW258F::YMW258F(uint32_t ClockSpeed, bool HasLDSP, size_t MemorySizeLDSP) :
 	m_ClockSpeed(ClockSpeed),
-	m_ClockDivider(224)
+	m_ClockDivider(224),
+	m_LDSP(HasLDSP ? std::make_unique<YM3413>(MemorySizeLDSP) : nullptr)
 {
 	YM::GEW8::BuildTables();
 
@@ -101,6 +102,9 @@ void YMW258F::Reset(ResetType Type)
 		/* Clear PCM memory */
 		memset(m_Memory.data(), 0, m_Memory.size());
 	}
+
+	/* Reset LDSP */
+	if (m_LDSP != nullptr) m_LDSP->InitialClear();
 }
 
 void YMW258F::SendExclusiveCommand(uint32_t Command, uint32_t Value)
@@ -173,7 +177,7 @@ void YMW258F::Write(uint32_t Address, uint32_t Data)
 
 	case 0x03: /* Unknown */
 		/* Virtua Racing writes 0x00 */
-		//__debugbreak();
+		__debugbreak();
 		break;
 
 	case 0x04: /* Unknown */
@@ -216,12 +220,12 @@ void YMW258F::Write(uint32_t Address, uint32_t Data)
 		m_MemoryAddress.u32 = (m_MemoryAddress.u32 + 1) & 0x3FFFFF;
 		break;
 
-	case 0x0D: /* LDSP control data */
-		//TODO: Hook up YM3413
+	case 0x0D: /* LDSP command data */
+		if (m_LDSP != nullptr) m_LDSP->SendCommandData(Data);
 		break;
 
-	case 0x0E: /* Unknown */
-		__debugbreak();
+	case 0x0E: /* LDSP reset ?? */
+		if (m_LDSP != nullptr) m_LDSP->InitialClear();
 		break;
 
 	case 0x0F: /* Unknown */
@@ -274,7 +278,7 @@ void YMW258F::WritePcmData(uint8_t ChannelNr, uint8_t Register, uint8_t Data)
 		Channel.FNum = (Channel.FNum & 0x3C0) | (Data >> 2);
 		Channel.WaveNr.u8h = Data & 0x1;
 
-		//assert((Data & 0x02) == 0); /* Test for undocumented bits */
+		assert((Data & 0x02) == 0); /* Test for undocumented bits */
 		break;
 
 	case 0x03: /* Octave / Frequency [9:6] */
@@ -282,14 +286,14 @@ void YMW258F::WritePcmData(uint8_t ChannelNr, uint8_t Register, uint8_t Data)
 		Channel.FNum9 = Channel.FNum >> 9;
 		Channel.Octave = ((Data >> 4) ^ 8) - 8; /* Sign extend [range = +7 : -8] */
 		
-		//assert(Channel.Octave != -8);
+		assert(Channel.Octave != -8);
 		break;
 
 	case 0x04: /* Channel control */
 		Channel.KeyLatch = (Data >> 7) & 0x01;
 		Channel.DspSend  = (Data >> 3) & 0x01;
 
-		//assert((Data & 0x77) == 0); /* Test for undocumented bits */
+		assert((Data & 0x77) == 0); /* Test for undocumented bits */
 		break;
 
 	case 0x05: /* Total level / Level direct */
@@ -310,7 +314,7 @@ void YMW258F::WritePcmData(uint8_t ChannelNr, uint8_t Register, uint8_t Data)
 		Channel.LfoPeriod = YM::GEW8::LfoPeriod[(Data >> 3) & 0x07];
 		Channel.PmDepth = Data & 0x07;
 
-		//assert((Data & 0xC0) == 0); /* Test for undocumented bits */
+		assert((Data & 0xC0) == 0); /* Test for undocumented bits */
 		break;
 
 	case 0x07: /* Tremolo (AM) */
@@ -331,7 +335,7 @@ void YMW258F::WritePcmData(uint8_t ChannelNr, uint8_t Register, uint8_t Data)
 
 	case 0x0A: /* Unknown */
 		/* Virtua Racing writes 0x07 for some channels */
-		/* TG100 demo writes 0x02 for some channels */
+		/* TG100 demo writes 0x01 and 0x02 for some channels */
 		//__debugbreak();
 		break;
 	
@@ -403,13 +407,12 @@ void YMW258F::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer
 	uint32_t Samples = TotalCycles / m_ClockDivider;
 	m_CyclesToDo = TotalCycles % m_ClockDivider;
 
-	int32_t OutL;
-	int32_t OutR;
+	int32_t OutL, OutR, DspAccmL, DspAccmR;
+	int16_t DspRetL, DspRetR;
 
 	while (Samples-- != 0)
 	{
-		OutL = 0;
-		OutR = 0;
+		OutL = OutR = DspAccmL = DspAccmR = 0;
 
 		/* Update global timer */
 		m_Timer++;
@@ -423,11 +426,34 @@ void YMW258F::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer
 
 			OutL += Channel.OutputL;
 			OutR += Channel.OutputR;
+
+			if (Channel.DspSend)
+			{
+				DspAccmL += Channel.OutputL;
+				DspAccmR += Channel.OutputR;
+			}
 		}
 
-		/* Limiter (signed 18-bit) */
-		OutL = std::clamp(OutL, -131072, 131071);
-		OutR = std::clamp(OutR, -131072, 131071);
+		if (m_LDSP != nullptr)
+		{
+			m_LDSP->GetSerialOutput0(&DspRetL, &DspRetR);
+			
+			/* Limiter (signed 16-bit) */
+			DspAccmL = std::clamp(DspAccmL, -32768, 32767);
+			DspAccmR = std::clamp(DspAccmR, -32768, 32767);
+
+			m_LDSP->SendSerialInput0(DspAccmL, DspAccmR);
+
+			/* Limiter (signed 18-bit) */
+			OutL = std::clamp(OutL + DspRetL, -131072, 131071);
+			OutR = std::clamp(OutR + DspRetR, -131072, 131071);
+		}
+		else
+		{
+			/* Limiter (signed 18-bit) */
+			OutL = std::clamp(OutL, -131072, 131071);
+			OutR = std::clamp(OutR, -131072, 131071);
+		}
 
 		/* Note: The accumulator is 18-bit, we only output the MSB 16-bits */
 		OutBuffer[AudioOut::GEW8]->WriteSampleS16(OutL >> 2);

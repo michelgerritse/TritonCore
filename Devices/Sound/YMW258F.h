@@ -17,12 +17,13 @@ See LICENSE.txt in the root directory of this source tree.
 #include "../../Interfaces/ISoundDevice.h"
 #include "../../Interfaces/IMemoryAccess.h"
 #include "YM_GEW.h"
+#include "DSP/YM3413.h"
 
 /* Yamaha YMW258-F (Advanced Wave Memory) */
 class YMW258F : public ISoundDevice, public IMemoryAccess
 {
 public:
-	YMW258F(uint32_t ClockSpeed = 9'400'000); /* Default clock taken from PSR510 service manual */
+	YMW258F(uint32_t ClockSpeed = 9'400'000, bool HasLDSP = true, size_t MemorySizeLSDP = 0x20000); /* Default clock taken from PSR510 service manual */
 	~YMW258F() = default;
 
 	/* IDevice methods */
@@ -59,7 +60,8 @@ private:
 	uint32_t	m_Bank0;			/* PCM memory bank 0 */
 	uint32_t	m_Bank1;			/* PCM memory bank 1 */
 
-	std::vector<uint8_t> m_Memory;
+	std::vector<uint8_t>	m_Memory;
+	std::unique_ptr<YM3413>	m_LDSP;
 
 	void	WritePcmData(uint8_t ChannelNr, uint8_t Register, uint8_t Data);
 	void	LoadWaveTable(YM::GEW8::channel_t& Channel);

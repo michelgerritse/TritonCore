@@ -28,8 +28,8 @@ public:
 	void SendCommandData(uint8_t Command);
 	void SendSerialInput0(int16_t ChL, int16_t ChR);
 	void SendSerialInput1(int16_t ChL, int16_t ChR);
-	//void GetSerialOutput0();
-	//void GetSerialOutput1();
+	void GetSerialOutput0(int16_t* pChL, int16_t* pChR);
+	void GetSerialOutput1(int16_t* pChL, int16_t* pChR);
 
 private:
 	std::vector<uint8_t>	m_Memory;
