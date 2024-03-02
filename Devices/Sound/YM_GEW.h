@@ -30,7 +30,8 @@ namespace YM::GEW8 /* Yamaha - GEW8 */
 		uint32_t	KeyState;		/* Key on/off state */
 		uint32_t	KeyLatch;		/* Latched key on/off flag */
 		
-		uint32_t	DspSend;		/* DSP channel routing flag */
+		uint32_t	DspSend;		/* DSP send flag */
+		uint32_t	DspSendLvl;		/* DSP send level (4-bit) */
 		
 		pair16_t	WaveNr;			/* Wave table number (9-bit) */
 		uint32_t	Format;			/* Wave format (2-bit) */
@@ -59,6 +60,7 @@ namespace YM::GEW8 /* Yamaha - GEW8 */
 		uint16_t	LoopAddr;		/* Loop address (16-bit) */
 		uint16_t	EndAddr;		/* End address (16-bit) */
 
+		uint32_t	LfoReset;		/* LFO reset/disable flag */
 		uint32_t	LfoCounter;		/* LFO counter */
 		uint32_t	LfoPeriod;		/* LFO period */
 		uint8_t		LfoStep;		/* LFO step counter (8-bit) */

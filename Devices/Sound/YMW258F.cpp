@@ -175,21 +175,24 @@ void YMW258F::Write(uint32_t Address, uint32_t Data)
 		m_RegisterLatch = Data;
 		break;
 
-	case 0x03: /* Unknown */
+	case 0x03: /* Memory address (H) (Guess) */
 		/* Virtua Racing writes 0x00 */
-		__debugbreak();
+		m_MemoryAddress.u8hl = Data & 0x3F;
 		break;
 
-	case 0x04: /* Unknown */
-		__debugbreak();
+	case 0x04: /* Memory address (M) (Guess) */
+		m_MemoryAddress.u8lh = Data;
 		break;
 
-	case 0x05: /* Unknown */
-		__debugbreak();
+	case 0x05: /* Memory address (L) (Guess) */
+		m_MemoryAddress.u8ll = Data;
 		break;
 
-	case 0x06: /* Unknown */
-		__debugbreak();
+	case 0x06: /* Memory data (Guess) */
+		m_Memory[m_MemoryAddress.u32] = Data;
+
+		/* Address auto increment */
+		m_MemoryAddress.u32 = (m_MemoryAddress.u32 + 1) & 0x3FFFFF;
 		break;
 
 	case 0x07: /* Unknown */
@@ -200,31 +203,28 @@ void YMW258F::Write(uint32_t Address, uint32_t Data)
 		__debugbreak();
 		break;
 
-	case 0x09: /* Memory address (H) ?? */
+	case 0x09: /* Global / Master Level (Guess)  */
 		/* Stadium Cross and Title Fight write 0x03 */
-		m_MemoryAddress.u8hl = Data & 0x3F;
+		/* TG-100 startup code writes 0x03 */
 		break;
 
-	case 0x0A: /* Memory address (M) ??  */
-		m_MemoryAddress.u8lh = Data;
+	case 0x0A: /* Unknown */
+		__debugbreak();
 		break;
 
-	case 0x0B: /* Memory address (L) ??  */
-		m_MemoryAddress.u8ll = Data;
+	case 0x0B: /* Unknown */
+		__debugbreak();
 		break;
 
-	case 0x0C: /* Memory data ?? */
-		m_Memory[m_MemoryAddress.u32] = Data;
-
-		/* Address auto increment */
-		m_MemoryAddress.u32 = (m_MemoryAddress.u32 + 1) & 0x3FFFFF;
+	case 0x0C: /* Unknown */
+		__debugbreak();
 		break;
 
 	case 0x0D: /* LDSP command data */
 		if (m_LDSP != nullptr) m_LDSP->SendCommandData(Data);
 		break;
 
-	case 0x0E: /* LDSP reset ?? */
+	case 0x0E: /* LDSP reset (Guess) */
 		if (m_LDSP != nullptr) m_LDSP->InitialClear();
 		break;
 
@@ -257,11 +257,12 @@ void YMW258F::WritePcmData(uint8_t ChannelNr, uint8_t Register, uint8_t Data)
 
 	switch (Register)
 	{
-	case 0x00: /* Pan */
+	case 0x00: /* Pan / DSP send level */
 		Channel.PanAttnL = YM::GEW8::PanAttnL[Data >> 4];
 		Channel.PanAttnR = YM::GEW8::PanAttnR[Data >> 4];
+		Channel.DspSendLvl = Data & 0x0F; /* Validation needed */
 
-		//assert((Data & 0x0F) == 0); /* Test for undocumented bits */
+		assert(Channel.DspSendLvl <= 8);
 		break;
 
 	case 0x01: /* Wave table number [7:0] */
@@ -271,14 +272,11 @@ void YMW258F::WritePcmData(uint8_t ChannelNr, uint8_t Register, uint8_t Data)
 
 		/* Reset address counter after loading a wave bank */
 		Channel.ReadAddr = 0;
-
 		break;
 
 	case 0x02: /* Frequency [5:0] / Wave table number [8] */
 		Channel.FNum = (Channel.FNum & 0x3C0) | (Data >> 2);
 		Channel.WaveNr.u8h = Data & 0x1;
-
-		assert((Data & 0x02) == 0); /* Test for undocumented bits */
 		break;
 
 	case 0x03: /* Octave / Frequency [9:6] */
@@ -291,9 +289,10 @@ void YMW258F::WritePcmData(uint8_t ChannelNr, uint8_t Register, uint8_t Data)
 
 	case 0x04: /* Channel control */
 		Channel.KeyLatch = (Data >> 7) & 0x01;
+		Channel.LfoReset = (Data >> 6) & 0x01;
 		Channel.DspSend  = (Data >> 3) & 0x01;
 
-		assert((Data & 0x77) == 0); /* Test for undocumented bits */
+		assert((Data & 0x37) == 0); /* Test for undocumented bits */
 		break;
 
 	case 0x05: /* Total level / Level direct */
@@ -310,33 +309,39 @@ void YMW258F::WritePcmData(uint8_t ChannelNr, uint8_t Register, uint8_t Data)
 		if (Data & 0x01) Channel.TotalLevel = Channel.TargetTL;
 		break;
 
-	case 0x06: /* LFO Frequency / Vibrato (PM) */
+	case 0x06: /* LFO Frequency / Vibrato (PM) depth */
 		Channel.LfoPeriod = YM::GEW8::LfoPeriod[(Data >> 3) & 0x07];
 		Channel.PmDepth = Data & 0x07;
-
-		assert((Data & 0xC0) == 0); /* Test for undocumented bits */
 		break;
 
-	case 0x07: /* Tremolo (AM) */
+	case 0x07: /* Attack rate / Tremolo (AM) depth */
+		Channel.EgRate[ADSR::Attack] = Data >> 4;
 		Channel.AmDepth = Data & 0x07;
-
-		//assert((Data & 0x78) == 0); /* Test for undocumented bits */
 		break;
 
-	case 0x08: /* Unknown */
-		//__debugbreak();
+	case 0x08: /* Decay level / Decay rate */
+		__debugbreak();
+
+		Channel.DecayLvl = Data >> 4; /* Validation needed */
+		Channel.EgRate[ADSR::Decay] = Data & 0x0F; /* Validation needed */
+
+		/* If all DL bits are set, DL is -93dB. See OPL4 manual page 20 */
+		Channel.DecayLvl |= (Channel.DecayLvl + 1) & 0x10;
 		break;
 
-	case 0x09: /* Unknown */
+	case 0x09: /* Rate correction / Release rate */
 		/* Virtua Racing writes 0x0F for all channels */
 		/* TG100 demo writes 0xFF for all channels */
-		//__debugbreak();
+		Channel.EgRateCorrect = Data >> 4; /* Validation needed */
+		Channel.EgRate[ADSR::Release] = Data & 0x0F;
 		break;
 
-	case 0x0A: /* Unknown */
+	case 0x0A: /* Sustain rate */
 		/* Virtua Racing writes 0x07 for some channels */
 		/* TG100 demo writes 0x01 and 0x02 for some channels */
-		//__debugbreak();
+		Channel.EgRate[ADSR::Sustain] = Data & 0x0F; /* Validation needed */
+		
+		assert((Data & 0xF0) == 0); /* Test for undocumented bits */
 		break;
 	
 	default:
@@ -408,7 +413,6 @@ void YMW258F::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer
 	m_CyclesToDo = TotalCycles % m_ClockDivider;
 
 	int32_t OutL, OutR, DspAccmL, DspAccmR;
-	int16_t DspRetL, DspRetR;
 
 	while (Samples-- != 0)
 	{
@@ -429,26 +433,25 @@ void YMW258F::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer
 
 			if (Channel.DspSend)
 			{
+				/* Validation needed (Also, how do we apply DSP send level ??) */
 				DspAccmL += Channel.OutputL;
 				DspAccmR += Channel.OutputR;
 			}
 		}
 
-		if (m_LDSP != nullptr)
-		{
-			m_LDSP->GetSerialOutput0(&DspRetL, &DspRetR);
-			
-			/* Limiter (signed 16-bit) */
-			DspAccmL = std::clamp(DspAccmL, -32768, 32767);
-			DspAccmR = std::clamp(DspAccmR, -32768, 32767);
+		//if (m_LDSP != nullptr)
+		//{
+		//	/* Limit DSP accumulator (signed 18 to 16-bit) */
+		//	int16_t DspSampleL = std::clamp(DspAccmL, -131072, 131071) >> 2;
+		//	int16_t DspSampleR = std::clamp(DspAccmR, -131072, 131071) >> 2;
 
-			m_LDSP->SendSerialInput0(DspAccmL, DspAccmR);
+		//	/* Round trip DSP sample data */
+		//	m_LDSP->ProcessChannel0(&DspSampleL, &DspSampleR);
 
-			/* Limiter (signed 18-bit) */
-			OutL = std::clamp(OutL + DspRetL, -131072, 131071);
-			OutR = std::clamp(OutR + DspRetR, -131072, 131071);
-		}
-		else
+		//	OutL = std::clamp(OutL + DspSampleL, -131072, 131071);
+		//	OutR = std::clamp(OutR + DspSampleR, -131072, 131071);
+		//}
+		//else
 		{
 			/* Limiter (signed 18-bit) */
 			OutL = std::clamp(OutL, -131072, 131071);
@@ -470,6 +473,12 @@ void YMW258F::UpdateLFO(YM::GEW8::channel_t& Channel)
 
 		/* Increase step counter (8-bit) */
 		Channel.LfoStep++;
+	}
+
+	if (Channel.LfoReset)
+	{
+		Channel.LfoCounter = 0;
+		Channel.LfoStep = 0;
 	}
 }
 
