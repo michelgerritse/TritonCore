@@ -79,6 +79,10 @@ void YMW258F::Reset(ResetType Type)
 	m_RegisterLatch = 0;
 	m_MemoryAddress = 0;
 
+	/* Reset DSP command */
+	m_DspCommand.u32 = 0;
+	m_DspCommandCnt = 0;
+
 	/* Reset banking (Sega MultiPCM only) */
 	m_Banking = 0;
 	m_Bank0 = 0;
@@ -221,7 +225,28 @@ void YMW258F::Write(uint32_t Address, uint32_t Data)
 		break;
 
 	case 0x0D: /* LDSP command data */
-		if (m_LDSP != nullptr) m_LDSP->SendCommandData(Data);
+		switch (m_DspCommandCnt)
+		{
+		case 0:
+			m_DspCommand.u8ll = Data;
+			break;
+
+		case 1:
+			m_DspCommand.u8lh = Data;
+			break;
+
+		case 2:
+			m_DspCommand.u8hl = Data;
+			break;
+
+		case 3:
+			m_DspCommand.u8hh = Data;
+
+			if (m_LDSP != nullptr) m_LDSP->SendCommandData(m_DspCommand.u32);
+			break;
+		}
+
+		m_DspCommandCnt = (m_DspCommandCnt + 1) & 3;
 		break;
 
 	case 0x0E: /* LDSP reset (Guess) */
@@ -412,11 +437,13 @@ void YMW258F::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer
 	uint32_t Samples = TotalCycles / m_ClockDivider;
 	m_CyclesToDo = TotalCycles % m_ClockDivider;
 
-	int32_t OutL, OutR, DspAccmL, DspAccmR;
+	int32_t AccmL, AccmR, DspAccmL, DspAccmR;
+	int16_t DspSampleL, DspSampleR;
 
 	while (Samples-- != 0)
 	{
-		OutL = OutR = DspAccmL = DspAccmR = 0;
+		AccmL = AccmR = DspAccmL = DspAccmR = 0;
+		DspSampleL = DspSampleR = 0;
 
 		/* Update global timer */
 		m_Timer++;
@@ -428,39 +455,35 @@ void YMW258F::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer
 			UpdateAddressGenerator(Channel);
 			UpdateMultiplier(Channel);
 
-			OutL += Channel.OutputL;
-			OutR += Channel.OutputR;
+			AccmL += Channel.OutputL;
+			AccmR += Channel.OutputR;
 
-			if (Channel.DspSend)
-			{
-				/* Validation needed (Also, how do we apply DSP send level ??) */
-				DspAccmL += Channel.OutputL;
-				DspAccmR += Channel.OutputR;
-			}
+			/* Validation needed: is DSP send level correctly applied ?? */
+			DspAccmL += Channel.OutputL >> (16 - (Channel.DspSendLvl << 1));
+			DspAccmR += Channel.OutputR >> (16 - (Channel.DspSendLvl << 1));
 		}
 
-		//if (m_LDSP != nullptr)
-		//{
-		//	/* Limit DSP accumulator (signed 18 to 16-bit) */
-		//	int16_t DspSampleL = std::clamp(DspAccmL, -131072, 131071) >> 2;
-		//	int16_t DspSampleR = std::clamp(DspAccmR, -131072, 131071) >> 2;
-
-		//	/* Round trip DSP sample data */
-		//	m_LDSP->ProcessChannel0(&DspSampleL, &DspSampleR);
-
-		//	OutL = std::clamp(OutL + DspSampleL, -131072, 131071);
-		//	OutR = std::clamp(OutR + DspSampleR, -131072, 131071);
-		//}
-		//else
+		if (m_LDSP != nullptr)
 		{
-			/* Limiter (signed 18-bit) */
-			OutL = std::clamp(OutL, -131072, 131071);
-			OutR = std::clamp(OutR, -131072, 131071);
+			/* Limit DSP accumulator (signed 18 to 16-bit) */
+			DspSampleL = std::clamp(DspAccmL, -131072, 131071) >> 2;
+			DspSampleR = std::clamp(DspAccmR, -131072, 131071) >> 2;
+
+			/* Round trip DSP samples */
+			m_LDSP->ProcessChannel0(&DspSampleL, &DspSampleR);
 		}
+		
+		/* Limiter (signed 18-bit) */
+		AccmL = std::clamp(AccmL + (DspSampleL << 2), -131072, 131071);
+		AccmR = std::clamp(AccmR + (DspSampleR << 2), -131072, 131071);
 
 		/* Note: The accumulator is 18-bit, we only output the MSB 16-bits */
-		OutBuffer[AudioOut::GEW8]->WriteSampleS16(OutL >> 2);
-		OutBuffer[AudioOut::GEW8]->WriteSampleS16(OutR >> 2);
+		OutBuffer[AudioOut::GEW8]->WriteSampleS16(AccmL >> 2);
+		OutBuffer[AudioOut::GEW8]->WriteSampleS16(AccmR >> 2);
+
+		/* DSP Test code */
+		//OutBuffer[AudioOut::GEW8]->WriteSampleS16(DspSampleL);
+		//OutBuffer[AudioOut::GEW8]->WriteSampleS16(DspSampleR);
 	}
 }
 

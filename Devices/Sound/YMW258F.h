@@ -51,6 +51,8 @@ private:
 	uint8_t		m_RegisterLatch;	/* PCM register latch */
 	uint32_t	m_Timer;			/* Global timer */
 	pair32_t	m_MemoryAddress;	/* External memory address (22-bit) */
+	pair32_t	m_DspCommand;		/* DSP command data (32-bit) */
+	uint32_t	m_DspCommandCnt;	/* DSP command counter */
 	
 	uint32_t	m_ClockSpeed;
 	uint32_t	m_ClockDivider;
