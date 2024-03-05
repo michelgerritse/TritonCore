@@ -14,9 +14,17 @@ See LICENSE.txt in the root directory of this source tree.
 #include "YM3413.h"
 
 /*
-	Yamaha YM3413 - Digital Signal Processor (LDSP) 
+	Yamaha YM3413 - Digital Signal Processor (LDSP)
 
-	Overview:
+	General description:
+	--------------------
+	
+	The YM3413 is a DSP, specifically designed for delay and reverb effects. It can be daisy chained
+	to other YM3413's, or to YM3415 (LEF) effect processors (as seen in the Yamaha SY77).
+	It has been used in several products, suchs as the Yamaha TG-100, PSR510, TQ-5 and more.
+
+	Pin layout:
+	-----------
 	  ____    ____
 	-|  1 \__/ 40 |-
 	-|  2      39 |-
@@ -63,11 +71,64 @@ See LICENSE.txt in the root directory of this source tree.
 	  19  |  O  | A4     | Address bus             |  39  |  O  | SO1    | Serial data output (1)
 	  20  |  I  | Vss    | Ground                  |  40  |  I  | CLK    | Clock
 
+	  Functional description:
+	  -----------------------
+
+	  Other than the pin layout/description, there is no information publicly available as far as I'm aware.
+	  The LDSP can handle 2 stereo data streams:
+	  - Channel 0
+	  - Channel 1 (might be just a passthrough channel)
+
+	  Data is serially clocked in, synchronized by the sync pulse signal.
+
+	  Input command data (pin CDI) is also directly ouput at pin CDO in order to allow daisy chaining.
+	  
+	  DSP command data format:
+	  ------------------------
+
+	  The command data format is unknown, the following command sequences are observed:
+	  (taken from the TG-100 demo song)
+
+	   LSB | MSB
+	  -----+-----
+	  0x00 - 0x80
+	  0x03 - 0x07
+	  0x00 - 0x80
+	  0x02 - 0x2A
+	  0x00 - 0x80
+	  0x04 - 0x00
+	  0x00 - 0x80
+	  0x02 - 0x2D
+	  0x00 - 0x80
+	  0x04 - 0x00
+	  0x00 - 0x80
+	  0x02 - 0x2B
+	  0x00 - 0x80
+	  0x04 - 0x40
+	  0x00 - 0x80
+	  0x02 - 0x2E
+	  0x00 - 0x80
+	  0x04 - 0x40
+	  0x00 - 0x80
+	  0x06 - 0xFF
+	  
+	  Later on in the TG100 demo VGM, after the song intro, a similar sequence is written but ends with:
+	  0x06 - 0xFA
+
+	  There is a clear pattern to be observed:
+	  Uploading the DSP program starts with 0x8000 as the first 16-bit word, followed by a 2nd 16-bit word.
+	  
+	  DSP processing:
+	  ---------------
+	  
+	  It takes 32 clock cycles for a 16-bit stereo sample to get send (and in parallel it will output the previously generated stereo sample).
+	  This means a DSP program should finish in 32 clock cycles as well.
 */
 
 YM3413::YM3413(size_t MemorySize)
 {
-	/* Set DSP memory size */
+	/* Set DSP memory size (128KB maximum) */
+	MemorySize = std::min<size_t>(MemorySize, 0x20000);
 	m_Memory.resize(MemorySize);
 
 	/* Reset */
@@ -87,51 +148,33 @@ void YM3413::ResetCommandCounter()
 	m_CommandCounter = 0;
 }
 
-void YM3413::SendCommandData(uint8_t Command)
+void YM3413::SendCommandData(uint32_t Command)
 {
-	/*
-	The command data format is unknown, the following command sequences are observed:
-		0x00 - 0x80
-		0x03 - 0x07
-		0x00 - 0x80
-		0x02 - 0x2A
-		0x00 - 0x80
-		0x04 - 0x00
-		0x00 - 0x80
-		0x02 - 0x2D
-		0x00 - 0x80
-		0x04 - 0x00
-		0x00 - 0x80
-		0x02 - 0x2B
-		0x00 - 0x80
-		0x04 - 0x40
-		0x00 - 0x80
-		0x02 - 0x2E
-		0x00 - 0x80
-		0x04 - 0x40
-		0x06 - 0xFF
 
-	Later on in the TG100 demo VGM, a similar sequence is written but ends with:
-		0x06 - 0xFA
-	*/
 }
 
-void YM3413::SendSerialInput0(int16_t ChL, int16_t ChR)
-{
+void YM3413::ProcessChannel0(int16_t* pChanL, int16_t* pChanR)
+{	
+	/* Store new samples */
+	int16_t NewSampleL = *pChanL;
+	int16_t NewSampleR = *pChanR;
+
+	/* Output previously generated samples */
+	*pChanL = 0;
+	*pChanR = 0;
+
+	//TODO: Process DSP program for 32 cycles
 }
 
-void YM3413::SendSerialInput1(int16_t ChL, int16_t ChR)
+void YM3413::ProcessChannel1(int16_t* pChanL, int16_t* pChanR)
 {
-}
+	/* Store new samples */
+	int16_t NewSampleL = *pChanL;
+	int16_t NewSampleR = *pChanR;
 
-void YM3413::GetSerialOutput0(int16_t* pChL, int16_t* pChR)
-{
-	*pChL = 0;
-	*pChR = 0;
-}
+	/* Output previously generated samples */
+	*pChanL = 0;
+	*pChanR = 0;
 
-void YM3413::GetSerialOutput1(int16_t* pChL, int16_t* pChR)
-{
-	*pChL = 0;
-	*pChR = 0;
+	//TODO: Process DSP program for 32 cycles
 }

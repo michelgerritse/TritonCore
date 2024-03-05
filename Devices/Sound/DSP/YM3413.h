@@ -25,11 +25,9 @@ public:
 
 	void InitialClear();
 	void ResetCommandCounter();
-	void SendCommandData(uint8_t Command);
-	void SendSerialInput0(int16_t ChL, int16_t ChR);
-	void SendSerialInput1(int16_t ChL, int16_t ChR);
-	void GetSerialOutput0(int16_t* pChL, int16_t* pChR);
-	void GetSerialOutput1(int16_t* pChL, int16_t* pChR);
+	void SendCommandData(uint32_t Command);
+	void ProcessChannel0(int16_t* pChanL, int16_t* pChanR);
+	void ProcessChannel1(int16_t* pChanL, int16_t* pChanR);
 
 private:
 	std::vector<uint8_t>	m_Memory;
