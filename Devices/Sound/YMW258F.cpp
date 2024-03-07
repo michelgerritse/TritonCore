@@ -314,7 +314,7 @@ void YMW258F::WritePcmData(uint8_t ChannelNr, uint8_t Register, uint8_t Data)
 
 	case 0x04: /* Channel control */
 		Channel.KeyLatch = (Data >> 7) & 0x01;
-		Channel.LfoReset = (Data >> 6) & 0x01;
+		Channel.LfoHold  = (Data >> 6) & 0x01;
 		Channel.DspSend  = (Data >> 3) & 0x01;
 
 		assert((Data & 0x37) == 0); /* Test for undocumented bits */
@@ -489,19 +489,16 @@ void YMW258F::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer
 
 void YMW258F::UpdateLFO(YM::GEW8::channel_t& Channel)
 {
-	if (++Channel.LfoCounter >= Channel.LfoPeriod)
+	if (Channel.LfoHold == 0)
 	{
-		/* Reset counter */
-		Channel.LfoCounter = 0;
+		if (++Channel.LfoCounter >= Channel.LfoPeriod)
+		{
+			/* Reset counter */
+			Channel.LfoCounter = 0;
 
-		/* Increase step counter (8-bit) */
-		Channel.LfoStep++;
-	}
-
-	if (Channel.LfoReset)
-	{
-		Channel.LfoCounter = 0;
-		Channel.LfoStep = 0;
+			/* Increase step counter (8-bit) */
+			Channel.LfoStep++;
+		}
 	}
 }
 

@@ -60,7 +60,7 @@ namespace YM::GEW8 /* Yamaha - GEW8 */
 		uint16_t	LoopAddr;		/* Loop address (16-bit) */
 		uint16_t	EndAddr;		/* End address (16-bit) */
 
-		uint32_t	LfoReset;		/* LFO reset/disable flag */
+		uint32_t	LfoHold;		/* LFO hold flag */
 		uint32_t	LfoCounter;		/* LFO counter */
 		uint32_t	LfoPeriod;		/* LFO period */
 		uint8_t		LfoStep;		/* LFO step counter (8-bit) */
