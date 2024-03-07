@@ -32,6 +32,8 @@ public:
 private:
 	std::vector<uint8_t>	m_Memory;
 	uint32_t				m_CommandCounter;
+
+	uint8_t					m_Volume;
 };
 
 #endif // !_YM3413_H_

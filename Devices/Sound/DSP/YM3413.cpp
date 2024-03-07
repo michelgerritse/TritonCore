@@ -20,7 +20,7 @@ See LICENSE.txt in the root directory of this source tree.
 	--------------------
 	
 	The YM3413 is a DSP, specifically designed for delay and reverb effects. It can be daisy chained
-	to other YM3413's, or to YM3415 (LEF) effect processors (as seen in the Yamaha SY77).
+	with an YM3415 (LEF) effect processor, as seen in the Yamaha SY77.
 	It has been used in several products, suchs as the Yamaha TG-100, PSR510, TQ-5 and more.
 
 	Pin layout:
@@ -71,58 +71,83 @@ See LICENSE.txt in the root directory of this source tree.
 	  19  |  O  | A4     | Address bus             |  39  |  O  | SO1    | Serial data output (1)
 	  20  |  I  | Vss    | Ground                  |  40  |  I  | CLK    | Clock
 
-	  Functional description:
-	  -----------------------
+	Functional description:
+	-----------------------
 
-	  Other than the pin layout/description, there is no information publicly available as far as I'm aware.
-	  The LDSP can handle 2 stereo data streams:
-	  - Channel 0
-	  - Channel 1 (might be just a passthrough channel)
+	Other than the pin layout/description, there is no information publicly available as far as I'm aware.
+	The LDSP can handle 2 stereo data streams:
+	- Channel 0
+	- Channel 1
 
-	  Data is serially clocked in, synchronized by the sync pulse signal.
-
-	  Input command data (pin CDI) is also directly ouput at pin CDO in order to allow daisy chaining.
+	Data is serially clocked in, synchronized by the sync pulse signal.
+	Input command data (pin CDI) is directly ouput at pin CDO in order to allow daisy chaining.
 	  
-	  DSP command data format:
-	  ------------------------
+	DSP command data format:
+	------------------------
 
-	  The command data format is unknown, the following command sequences are observed:
-	  (taken from the TG-100 demo song)
+	The command data format is unknown, the following command sequences are observed:
+	(taken from the TG-100 demo song)
 
-	   LSB | MSB
-	  -----+-----
-	  0x00 - 0x80
-	  0x03 - 0x07
-	  0x00 - 0x80
-	  0x02 - 0x2A
-	  0x00 - 0x80
-	  0x04 - 0x00
-	  0x00 - 0x80
-	  0x02 - 0x2D
-	  0x00 - 0x80
-	  0x04 - 0x00
-	  0x00 - 0x80
-	  0x02 - 0x2B
-	  0x00 - 0x80
-	  0x04 - 0x40
-	  0x00 - 0x80
-	  0x02 - 0x2E
-	  0x00 - 0x80
-	  0x04 - 0x40
-	  0x00 - 0x80
-	  0x06 - 0xFF
-	  
-	  Later on in the TG100 demo VGM, after the song intro, a similar sequence is written but ends with:
-	  0x06 - 0xFA
+		 LSB | MSB
+		-----+-----
+		0x00 - 0x80
+		0x03 - 0x07
+		0x00 - 0x80
+		0x02 - 0x2A
+		0x00 - 0x80
+		0x04 - 0x00
+		0x00 - 0x80
+		0x02 - 0x2D
+		0x00 - 0x80
+		0x04 - 0x00
+		0x00 - 0x80
+		0x02 - 0x2B
+		0x00 - 0x80
+		0x04 - 0x40
+		0x00 - 0x80
+		0x02 - 0x2E
+		0x00 - 0x80
+		0x04 - 0x40
+		0x00 - 0x80
+		0x06 - 0xFF
 
-	  There is a clear pattern to be observed:
-	  Uploading the DSP program starts with 0x8000 as the first 16-bit word, followed by a 2nd 16-bit word.
+	If we rewrite the above sequence into 32-bit values we get this:
+
+		0x07038000
+		0x2A028000
+		0x00048000
+		0x2D028000
+		0x00048000
+		0x2B028000
+		0x40048000
+		0x2E028000
+		0x40048000
+		0xFF068000
 	  
-	  DSP processing:
-	  ---------------
+	Later on in the TG100 demo VGM, after the song intro, a large sequence is written but ends with:
+		0x06 - 0xFA
+
+	There is a clear pattern to be observed:
+	The LSB 16-bit is the trigger/identifier for the YM3413. This appears to be 0x8000
+	The MSB 16-bit is the actual command which can be split into 2 bytes:
+	The LSB byte is the register / function
+	The MSB byte is the value / parameter
+
+	The following DSP functions have been observed:
+
+		0x00: Clear DSP program ?
+		0x01: Unknown
+		0x02: Unknown
+		0x03: Channel enable flags ?
+		0x04: Unknown
+		0x05: Unknown
+		0x06: Set DSP volume (0x00 = Mute, 0xFF = Max. volume)
+
+	DSP processing:
+	---------------
 	  
-	  It takes 32 clock cycles for a 16-bit stereo sample to get send (and in parallel it will output the previously generated stereo sample).
-	  This means a DSP program should finish in 32 clock cycles as well.
+	It takes 32 clock cycles for a 16-bit stereo sample to get send (and in parallel it will output the previously generated stereo sample).
+	This means a DSP program should finish in 32 clock cycles as well.
 */
 
 YM3413::YM3413(size_t MemorySize)
@@ -138,6 +163,7 @@ YM3413::YM3413(size_t MemorySize)
 void YM3413::InitialClear()
 {
 	m_CommandCounter = 0;
+	m_Volume = 0;
 
 	/* Clear DSP memory */
 	memset(m_Memory.data(), 0, m_Memory.size());
@@ -150,7 +176,39 @@ void YM3413::ResetCommandCounter()
 
 void YM3413::SendCommandData(uint32_t Command)
 {
+	pair32_t Data{.u32 = Command};
+	
+	if (Data.u16l == 0x8000)
+	{
+		switch (Data.u8hl)
+		{
+		case 0x00: /* Unknown */
+			break;
 
+		case 0x01: /* Unknown */
+			break;
+
+		case 0x02: /* Unknown */
+			break;
+
+		case 0x03: /* Unknown */
+			break;
+
+		case 0x04: /* Unknown */
+			break;
+
+		case 0x05: /* Unknown */
+			break;
+
+		case 0x06: /* Volume level */
+			m_Volume = Data.u8hh;
+			break;
+
+		default:
+			__debugbreak();
+			break;
+		}
+	}
 }
 
 void YM3413::ProcessChannel0(int16_t* pChanL, int16_t* pChanR)
