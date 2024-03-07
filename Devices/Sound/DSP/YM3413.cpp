@@ -81,7 +81,9 @@ See LICENSE.txt in the root directory of this source tree.
 
 	Data is serially clocked in, synchronized by the sync pulse signal.
 	Input command data (pin CDI) is directly ouput at pin CDO in order to allow daisy chaining.
-	  
+
+	The LDSP can access up to 128KB of PSRAM. Interestingly enough the PSR510 has 128KB of PSRAM installed, but address pin A16 is not connected.
+
 	DSP command data format:
 	------------------------
 
