@@ -138,9 +138,9 @@ See LICENSE.txt in the root directory of this source tree.
 	The following DSP functions have been observed:
 
 		0x00: Clear DSP program ?
-		0x01: Unknown
+		0x01: Channel enable flags ?
 		0x02: Unknown
-		0x03: Channel enable flags ?
+		0x03: Unknown
 		0x04: Unknown
 		0x05: Unknown
 		0x06: Set DSP volume (0x00 = Mute, 0xFF = Max. volume)
@@ -187,7 +187,7 @@ void YM3413::SendCommandData(uint32_t Command)
 		case 0x00: /* Unknown */
 			break;
 
-		case 0x01: /* Unknown */
+		case 0x01: /* Channel Enable ? */
 			break;
 
 		case 0x02: /* Unknown */

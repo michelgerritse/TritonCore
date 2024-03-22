@@ -92,9 +92,6 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\Y8950.h">
       <Filter>Devices\Sound\Yamaha\OPL</Filter>
     </ClInclude>
-    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\DAC\YM3014.h">
-      <Filter>Devices\DAC\Yamaha</Filter>
-    </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YM_OPL.h">
       <Filter>Devices\Sound\Yamaha</Filter>
     </ClInclude>
@@ -104,8 +101,11 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YM_OPN.h">
       <Filter>Devices\Sound\Yamaha</Filter>
     </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\DAC\YM3014.h">
+      <Filter>Devices\Sound\DAC</Filter>
+    </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\DSP\YM3413.h">
-      <Filter>Devices\DSP\Yamaha</Filter>
+      <Filter>Devices\Sound\DSP</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -148,20 +148,14 @@
     <Filter Include="Devices\Sound\General Instrument">
       <UniqueIdentifier>{e9132e83-027a-4f4f-bc6f-7b0fe3fe387d}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Devices\DAC">
-      <UniqueIdentifier>{e2480590-2d32-4f78-8404-c98aee2278d6}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Devices\DAC\Yamaha">
-      <UniqueIdentifier>{aa8c3f92-aa97-4a01-9f33-38ad3ba67119}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Devices\Sound\Yamaha\GEW">
       <UniqueIdentifier>{3a629f32-28c9-4a48-97de-1ccaf114992c}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Devices\DSP">
+    <Filter Include="Devices\Sound\DSP">
       <UniqueIdentifier>{b6e69446-760e-49cc-bd6b-148e5d78c587}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Devices\DSP\Yamaha">
-      <UniqueIdentifier>{84d8de1a-abd2-4fe0-a5c7-3e8ea8c9c7d4}</UniqueIdentifier>
+    <Filter Include="Devices\Sound\DAC">
+      <UniqueIdentifier>{e2480590-2d32-4f78-8404-c98aee2278d6}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -222,11 +216,11 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\Y8950.cpp">
       <Filter>Devices\Sound\Yamaha\OPL</Filter>
     </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\DAC\YM3014.cpp">
-      <Filter>Devices\DAC\Yamaha</Filter>
+    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\DAC\YM3014.cpp">
+      <Filter>Devices\Sound\DAC</Filter>
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\DSP\YM3413.cpp">
-      <Filter>Devices\DSP\Yamaha</Filter>
+      <Filter>Devices\Sound\DSP</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

@@ -14,7 +14,7 @@ See LICENSE.txt in the root directory of this source tree.
 #ifndef _YM3014_H_
 #define _YM3014_H_
 
-#include "..\..\TritonCore.h"
+#include "..\..\..\TritonCore.h"
 
 /* Yamaha YM3014 (DAC-SS) */
 class YM3014
