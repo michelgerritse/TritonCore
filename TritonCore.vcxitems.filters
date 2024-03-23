@@ -107,6 +107,9 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\DSP\YM3413.h">
       <Filter>Devices\Sound\DSP</Filter>
     </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YMF292F.h">
+      <Filter>Devices\Sound\Yamaha\SCSP</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Interfaces">
@@ -156,6 +159,9 @@
     </Filter>
     <Filter Include="Devices\Sound\DAC">
       <UniqueIdentifier>{e2480590-2d32-4f78-8404-c98aee2278d6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Devices\Sound\Yamaha\SCSP">
+      <UniqueIdentifier>{10142c48-9a02-4c90-b7a0-b340ead5b6b1}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -221,6 +227,9 @@
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\DSP\YM3413.cpp">
       <Filter>Devices\Sound\DSP</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\YMF292F.cpp">
+      <Filter>Devices\Sound\Yamaha\SCSP</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
