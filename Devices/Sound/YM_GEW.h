@@ -30,7 +30,6 @@ namespace YM::GEW8 /* Yamaha - GEW8 */
 		uint32_t	KeyState;		/* Key on/off state */
 		uint32_t	KeyLatch;		/* Latched key on/off flag */
 		
-		uint32_t	DspSend;		/* DSP send flag */
 		uint32_t	DspSendLvl;		/* DSP send level (4-bit) */
 		
 		pair16_t	WaveNr;			/* Wave table number (9-bit) */
@@ -52,6 +51,7 @@ namespace YM::GEW8 /* Yamaha - GEW8 */
 		uint32_t	EgLevel;		/* Envelope internal level (10-bit: 4.6) */
 		uint32_t	EgOutputL;		/* Envelope output (left)  (12-bit: 4.8) */
 		uint32_t	EgOutputR;		/* Envelope output (right) (12-bit: 4.8) */
+		uint32_t	EgUnknown;		/* Unknown EG related flag */
 
 		uint32_t	PgReset;		/* Phase reset flag */
 

@@ -4,7 +4,7 @@
   | || '_| |  _/ _ \ ' \ (__/ _ \ '_/ -_)
   |_||_| |_|\__\___/_||_\___\___/_| \___|
 
-Copyright © 2023, Michel Gerritse
+Copyright © 2024, Michel Gerritse
 All rights reserved.
 
 This source code is available under the BSD-3-Clause license.
@@ -313,9 +313,9 @@ void YMW258F::WritePcmData(uint8_t ChannelNr, uint8_t Register, uint8_t Data)
 		break;
 
 	case 0x04: /* Channel control */
-		Channel.KeyLatch = (Data >> 7) & 0x01;
-		Channel.LfoHold  = (Data >> 6) & 0x01;
-		Channel.DspSend  = (Data >> 3) & 0x01;
+		Channel.KeyLatch	= (Data >> 7) & 0x01;
+		Channel.LfoHold		= (Data >> 6) & 0x01;
+		Channel.EgUnknown	= (Data >> 3) & 0x01;
 
 		assert((Data & 0x37) == 0); /* Test for undocumented bits */
 		break;

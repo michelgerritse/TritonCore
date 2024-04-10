@@ -4,7 +4,7 @@
   | || '_| |  _/ _ \ ' \ (__/ _ \ '_/ -_)
   |_||_| |_|\__\___/_||_\___\___/_| \___|
 
-Copyright © 2023, Michel Gerritse
+Copyright © 2024, Michel Gerritse
 All rights reserved.
 
 This source code is available under the BSD-3-Clause license.
