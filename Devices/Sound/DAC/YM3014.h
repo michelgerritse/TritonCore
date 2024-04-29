@@ -20,13 +20,15 @@ See LICENSE.txt in the root directory of this source tree.
 class YM3014
 {
 public:
-	YM3014() = default;
+	YM3014(float Vdd = 5.0f);
 	~YM3014() = default;
 
-	int16_t Process(uint16_t Data);
+	float SendAudioData(int16_t Data);
 
 private:
+	static const std::wstring s_DeviceName;
 
+	float m_Vdd;	/* Input voltage */
 };
 
 #endif // !_YM3014_H_
