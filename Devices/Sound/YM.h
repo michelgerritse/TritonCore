@@ -55,7 +55,7 @@ namespace YM /* Yamaha */
 		http://yehar.com/blog/?p=665
 		*/
 
-		return (uint32_t) round((exp2(Value / 256.0) - 1) * 1024.0);
+		return (uint32_t) round((exp2(Value / 256.0) - 1.0) * 1024.0);
 	};
 	
 	/* ADPCM-A data type */
