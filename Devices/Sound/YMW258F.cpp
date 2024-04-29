@@ -37,7 +37,7 @@ See LICENSE.txt in the root directory of this source tree.
 /* Audio output enumeration */
 enum AudioOut
 {
-	GEW8 = 0
+	Default = 0
 };
 
 /* Envelope phases */
@@ -136,13 +136,13 @@ void YMW258F::SendExclusiveCommand(uint32_t Command, uint32_t Value)
 
 bool YMW258F::EnumAudioOutputs(uint32_t OutputNr, AUDIO_OUTPUT_DESC& Desc)
 {
-	if (OutputNr == AudioOut::GEW8)
+	if (OutputNr == AudioOut::Default)
 	{
-		Desc.SampleRate = m_ClockSpeed / m_ClockDivider;
-		Desc.SampleFormat = 0;
-		Desc.Channels = 2;
-		Desc.ChannelMask = SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT;
-		Desc.Description = L"";
+		Desc.SampleRate		= m_ClockSpeed / m_ClockDivider;
+		Desc.SampleFormat	= AudioFormat::AUDIO_FMT_S16;
+		Desc.Channels		= 2;
+		Desc.ChannelMask	= SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT;
+		Desc.Description	= L"Digital Out";
 
 		return true;
 	}
@@ -478,12 +478,12 @@ void YMW258F::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer
 		AccmR = std::clamp(AccmR + (DspSampleR << 2), -131072, 131071);
 
 		/* Note: The accumulator is 18-bit, we only output the MSB 16-bits */
-		OutBuffer[AudioOut::GEW8]->WriteSampleS16(AccmL >> 2);
-		OutBuffer[AudioOut::GEW8]->WriteSampleS16(AccmR >> 2);
+		OutBuffer[AudioOut::Default]->WriteSampleS16(AccmL >> 2);
+		OutBuffer[AudioOut::Default]->WriteSampleS16(AccmR >> 2);
 
 		/* DSP Test code */
-		//OutBuffer[AudioOut::GEW8]->WriteSampleS16(DspSampleL);
-		//OutBuffer[AudioOut::GEW8]->WriteSampleS16(DspSampleR);
+		//OutBuffer[AudioOut::Default]->WriteSampleS16(DspSampleL);
+		//OutBuffer[AudioOut::Default]->WriteSampleS16(DspSampleR);
 	}
 }
 
