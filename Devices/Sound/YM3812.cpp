@@ -24,8 +24,9 @@ See LICENSE.txt in the root directory of this source tree.
 /* Audio output enumeration */
 enum AudioOut
 {
-	OPL = 0
+	Default = 0
 };
+
 
 /* Slot naming */
 enum SlotName
@@ -63,6 +64,9 @@ enum Rhythm : uint32_t
 YM3812::YM3812(uint32_t ClockSpeed):
 	m_ClockSpeed(ClockSpeed)
 {
+	/* Create DAC */
+	m_DAC = std::make_unique<YM3014>(5.0f);
+	
 	/* Build OPL tables */
 	YM::OPL::BuildTables();
 
@@ -115,13 +119,13 @@ void YM3812::SendExclusiveCommand(uint32_t Command, uint32_t Value)
 
 bool YM3812::EnumAudioOutputs(uint32_t OutputNr, AUDIO_OUTPUT_DESC& Desc)
 {
-	if (OutputNr == AudioOut::OPL)
+	if (OutputNr == AudioOut::Default)
 	{
-		Desc.SampleRate = m_ClockSpeed / (4 * 18);
-		Desc.SampleFormat = 0;
-		Desc.Channels = 1;
-		Desc.ChannelMask = SPEAKER_FRONT_CENTER;
-		Desc.Description = L"FM";
+		Desc.SampleRate		= m_ClockSpeed / (4 * 18);
+		Desc.SampleFormat	= AudioFormat::AUDIO_FMT_F32;
+		Desc.Channels		= 1;
+		Desc.ChannelMask	= SPEAKER_FRONT_CENTER;
+		Desc.Description	= L"FM";
 		return true;
 	}
 
@@ -472,8 +476,10 @@ void YM3812::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
 		/* Limiter (signed 16-bit) */
 		int16_t Out = std::clamp(m_OPL.Out, -32768, 32767);
 
-		/* 16-bit output */
-		OutBuffer[AudioOut::OPL]->WriteSampleS16(Out);
+		/* Digital to "analog" conversion */
+		float AnalogOut = m_DAC->SendAudioData(Out);
+
+		OutBuffer[AudioOut::Default]->WriteSampleF32(AnalogOut);
 	}
 }
 
@@ -492,15 +498,15 @@ void YM3812::UpdatePhaseGenerator(uint32_t SlotId)
 	{
 		/* LFO-PM shape (8 steps):
 
-			  2
-			 / \
-			1   3
-		   /     \
-		--0-------4-------0--
-				   \     /
-					5   7
-					 \ /
-					  6
+	          2
+	         / \
+	        1   3
+	       /     \
+	    --0-------4-------0--
+	               \     /
+	                5   7
+	                 \ /
+	                  6
 		*/
 
 		uint32_t Inc = FNum >> 7;
