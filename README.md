@@ -20,6 +20,9 @@ The following sound devices are emulated:
 - Yamaha YMW258F (a.k.a. MultiPCM)
 - Yamaha YMZ280B
 
+The following digital-to-analog converters are emulated:
+- Yamaha YM3014
+
 More devices will be added in the future.
 
 ## Documentation
