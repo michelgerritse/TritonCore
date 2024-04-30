@@ -43,11 +43,42 @@ public:
 private:
 	static const std::wstring s_DeviceName;
 
+	/* Common registers data type */
+	struct common_t
+	{
+		uint32_t	MemoryMask;		/* MEM4MB: Memory address mask */
+		uint32_t	Dac18bit;		/* DAC18B: DAC 16/18bit output selection */
+		uint8_t		Version;		/* VER:    Version number (4-bit) */
+		uint8_t		MasterVolume;	/* MVOL:   Master volume (4-bit) */
+		uint8_t		RingBufLength;	/* RBL:    Ring buffer length */
+		uint32_t	RingBufAddr;	/* RBP:    Ring buffer lead address (20-bit) */
+		uint8_t		MidiFifoFlags;	/* MIDI input/output FIFO flags */
+		//			MiBuf;			/* MIBUF:  MIDI input data buffer */
+		//			MoBuf;			/* MOBUF:  MIDI output data buffer */
+		uint8_t		MonitorSlot;	/* MSLC:   Monitor slot (5-bit) */
+		uint8_t		CallAddress;	/* CA:     Call address (3-bit) */
+
+		// TODO: To be completed
+	};
+
+	/* Slot registers data type */
+	struct slot_t
+	{
+		uint32_t	KeyState;		/* Key on/off state */
+		uint32_t	KeyLatch;		/* Latched key on/off flag */
+		uint32_t	KeyExLatch;		/* Latched key ex on/off flag */
+	};
+
+	common_t	m_Common;
+	slot_t		m_Slot[32];
+
 	uint32_t	m_ClockSpeed;
 	uint32_t	m_ClockDivider;
 	uint32_t	m_CyclesToDo;
 
 	std::vector<uint8_t>	m_Memory;
+
+	void	WriteCommonControl8(uint32_t Address, uint8_t Data);
 };
 
 #endif // !_YMF292F_H_
