@@ -15,6 +15,7 @@ See LICENSE.txt in the root directory of this source tree.
 #define _YM3014_H_
 
 #include "..\..\..\TritonCore.h"
+#include "..\..\..\Interfaces\IAudioBuffer.h"
 
 /* Yamaha YM3014 (DAC-SS) */
 class YM3014
@@ -23,7 +24,9 @@ public:
 	YM3014(float Vdd = 5.0f);
 	~YM3014() = default;
 
-	float SendAudioData(int16_t Data);
+	const std::wstring& GetDeviceName();
+	uint32_t			GetAudioFormat();
+	float				SendDigitalData(int16_t Data);
 
 private:
 	static const std::wstring s_DeviceName;

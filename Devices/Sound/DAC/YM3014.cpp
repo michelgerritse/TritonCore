@@ -93,7 +93,17 @@ YM3014::YM3014(float Vdd) :
 {
 }
 
-float YM3014::SendAudioData(int16_t Data)
+const std::wstring& YM3014::GetDeviceName()
+{
+	return s_DeviceName;
+}
+
+uint32_t YM3014::GetAudioFormat()
+{
+	return AudioFormat::AUDIO_FMT_F32;
+}
+
+float YM3014::SendDigitalData(int16_t Data)
 {	
 	/* Convert sample data (1's complement) */
 	uint16_t uData = (Data ^ (Data >> 15));
