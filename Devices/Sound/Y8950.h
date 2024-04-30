@@ -18,6 +18,7 @@ See LICENSE.txt in the root directory of this source tree.
 #include "../../Interfaces/IMemoryAccess.h"
 #include "YM_OPL.h"
 #include "YM.h"
+#include "DAC/YM3014.h"
 
 /* Yamaha Y8950 (MSX-AUDIO) */
 class Y8950 : public ISoundDevice, public IMemoryAccess
@@ -59,7 +60,7 @@ private:
 		uint32_t	RHY;			/* Rhythm mode on/off flag */
 		uint8_t		Status;			/* Status register (8-bit) */
 		uint8_t		StatusMask;		/* Status flag mask (8-bit) */
-		int32_t		Out;			/* Accumulator ouput */
+		int32_t		Out;			/* Accumulator output */
 
 		uint32_t	LfoAmStep;		/* Current LFO-AM step */
 		uint32_t	LfoAmShift;		/* LFO-AM depth selector */
@@ -87,6 +88,7 @@ private:
 	uint8_t			m_IoCtrl;			/* I/O control (4-bit) */
 
 	std::array<uint8_t, 0x40000>	m_Memory;	/* 256KB ADPCM-B memory */
+	std::unique_ptr<YM3014>	m_DAC;
 
 	void		WriteRegisterArray(uint8_t Address, uint8_t Data);
 	void		UpdateTimers();

@@ -42,7 +42,7 @@ See LICENSE.txt in the root directory of this source tree.
 /* Audio output enumeration */
 enum AudioOut
 {
-	OPL = 0
+	Default = 0
 };
 
 /* Slot naming */
@@ -81,6 +81,9 @@ enum Rhythm : uint32_t
 Y8950::Y8950(uint32_t ClockSpeed) :
 	m_ClockSpeed(ClockSpeed)
 {
+	/* Create DAC */
+	m_DAC = std::make_unique<YM3014>(5.0f);
+	
 	/* Build OPL tables */
 	YM::OPL::BuildTables();
 
@@ -149,13 +152,13 @@ void Y8950::SendExclusiveCommand(uint32_t Command, uint32_t Value)
 
 bool Y8950::EnumAudioOutputs(uint32_t OutputNr, AUDIO_OUTPUT_DESC& Desc)
 {
-	if (OutputNr == AudioOut::OPL)
+	if (OutputNr == AudioOut::Default)
 	{
-		Desc.SampleRate = m_ClockSpeed / (4 * 18);
-		Desc.SampleFormat = 0;
-		Desc.Channels = 1;
-		Desc.ChannelMask = SPEAKER_FRONT_CENTER;
-		Desc.Description = L"FM";
+		Desc.SampleRate		= m_ClockSpeed / (4 * 18);
+		Desc.SampleFormat	= AudioFormat::AUDIO_FMT_F32;
+		Desc.Channels		= 1;
+		Desc.ChannelMask	= SPEAKER_FRONT_CENTER;
+		Desc.Description	= L"FM";
 		return true;
 	}
 
@@ -618,8 +621,10 @@ void Y8950::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
 		/* Limit (signed 16-bit) */
 		int16_t Out = std::clamp(m_OPL.Out, -32768, 32767);
 
-		/* 16-bit output */
-		OutBuffer[AudioOut::OPL]->WriteSampleS16(Out);
+		/* Digital to "analog" conversion */
+		float AnalogOut = m_DAC->SendAudioData(Out);
+
+		OutBuffer[AudioOut::Default]->WriteSampleF32(AnalogOut);
 	}
 }
 
