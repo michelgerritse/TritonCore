@@ -20,6 +20,7 @@
     <None Include="$(MSBuildThisFileDirectory)README.md" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\CPU\H8_520.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\ADPCM.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\AY.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\AY8910.h" />
@@ -57,6 +58,7 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)TritonCore.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\CPU\H8_520.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\ADPCM.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\AY8910.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\DAC\YM3014.cpp" />

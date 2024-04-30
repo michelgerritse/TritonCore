@@ -110,6 +110,9 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\YMF292F.h">
       <Filter>Devices\Sound\Yamaha\SCSP</Filter>
     </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Devices\CPU\H8_520.h">
+      <Filter>Devices\CPU</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Interfaces">
@@ -162,6 +165,9 @@
     </Filter>
     <Filter Include="Devices\Sound\Yamaha\SCSP">
       <UniqueIdentifier>{10142c48-9a02-4c90-b7a0-b340ead5b6b1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Devices\CPU">
+      <UniqueIdentifier>{bcd115a1-1cd9-4017-bd80-b57db36ce26b}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -230,6 +236,9 @@
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)Devices\Sound\YMF292F.cpp">
       <Filter>Devices\Sound\Yamaha\SCSP</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)Devices\CPU\H8_520.cpp">
+      <Filter>Devices\CPU</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
