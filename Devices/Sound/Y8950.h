@@ -79,7 +79,10 @@ private:
 		uint32_t	LsiTest2;		/* LSI test bit 2 */
 	};
 
+	static const std::wstring s_DeviceName;
+
 	uint32_t		m_ClockSpeed;
+	uint32_t		m_ClockDivider;
 	uint32_t		m_CyclesToDo;
 
 	uint8_t			m_AddressLatch;		/* Address latch (8-bit) */

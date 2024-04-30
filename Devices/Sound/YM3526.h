@@ -16,6 +16,7 @@ See LICENSE.txt in the root directory of this source tree.
 
 #include "../../Interfaces/ISoundDevice.h"
 #include "YM_OPL.h"
+#include "DAC/YM3014.h"
 
 /* Yamaha YM3526 (OPL) */
 class YM3526 : public ISoundDevice
@@ -52,7 +53,7 @@ private:
 		uint32_t	NTS;			/* Note select flag */
 		uint32_t	RHY;			/* Rhythm mode on/off flag */
 		uint8_t		Status;			/* Status register (8-bit) */
-		int32_t		Out;			/* Accumulator ouput */
+		int32_t		Out;			/* Accumulator output */
 
 		uint32_t	LfoAmStep;		/* Current LFO-AM step */
 		uint32_t	LfoAmShift;		/* LFO-AM depth selector */
@@ -71,11 +72,16 @@ private:
 		uint32_t	LsiTest2;		/* LSI test bit 2 */
 	};
 
+	static const std::wstring s_DeviceName;
+
 	uint32_t	m_ClockSpeed;
+	uint32_t	m_ClockDivider;
 	uint32_t	m_CyclesToDo;
 	
 	uint8_t		m_AddressLatch;		/* Address latch (8-bit) */
 	opl_t		m_OPL;				/* OPL unit */
+
+	std::unique_ptr<YM3014>	m_DAC;
 
 	void		WriteRegisterArray(uint8_t Address, uint8_t Data);
 	void		UpdateTimers();

@@ -24,7 +24,7 @@ See LICENSE.txt in the root directory of this source tree.
 /* Audio output enumeration */
 enum AudioOut
 {
-	OPL = 0
+	Default = 0
 };
 
 /* Slot naming */
@@ -60,9 +60,16 @@ enum Rhythm : uint32_t
 	TC = 17		/* Top cymbal  (CH9 - S2) */
 };
 
+/* Static class member initialization */
+const std::wstring YM3526::s_DeviceName = L"Yamaha YM3526";
+
 YM3526::YM3526(uint32_t ClockSpeed) :
-	m_ClockSpeed(ClockSpeed)
+	m_ClockSpeed(ClockSpeed),
+	m_ClockDivider(4 * 18)
 {
+	/* Create DAC */
+	m_DAC = std::make_unique<YM3014>(5.0f);
+	
 	/* Build OPL tables */
 	YM::OPL::BuildTables();
 
@@ -72,7 +79,7 @@ YM3526::YM3526(uint32_t ClockSpeed) :
 
 const wchar_t* YM3526::GetDeviceName()
 {
-	return L"Yamaha YM3526";
+	return s_DeviceName.c_str();
 }
 
 void YM3526::Reset(ResetType Type)
@@ -114,13 +121,13 @@ void YM3526::SendExclusiveCommand(uint32_t Command, uint32_t Value)
 
 bool YM3526::EnumAudioOutputs(uint32_t OutputNr, AUDIO_OUTPUT_DESC& Desc)
 {
-	if (OutputNr == AudioOut::OPL)
+	if (OutputNr == AudioOut::Default)
 	{
-		Desc.SampleRate = m_ClockSpeed / (4 * 18);
-		Desc.SampleFormat = 0;
-		Desc.Channels = 1;
-		Desc.ChannelMask = SPEAKER_FRONT_CENTER;
-		Desc.Description = L"FM";
+		Desc.SampleRate		= m_ClockSpeed / m_ClockDivider;
+		Desc.SampleFormat	= m_DAC->GetAudioFormat();
+		Desc.Channels		= 1;
+		Desc.ChannelMask	= SPEAKER_FRONT_CENTER;
+		Desc.Description	= L"Analog out (" + m_DAC->GetDeviceName() + L")";
 		return true;
 	}
 
@@ -426,8 +433,8 @@ void YM3526::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
 	};
 
 	uint32_t TotalCycles = ClockCycles + m_CyclesToDo;
-	uint32_t Samples = TotalCycles / (18 * 4);
-	m_CyclesToDo = TotalCycles % (18 * 4);
+	uint32_t Samples = TotalCycles / m_ClockDivider;
+	m_CyclesToDo = TotalCycles % m_ClockDivider;
 
 	while (Samples-- != 0)
 	{
@@ -456,8 +463,10 @@ void YM3526::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
 		/* Limiter (signed 16-bit) */
 		int16_t Out = std::clamp(m_OPL.Out, -32768, 32767);
 
-		/* 16-bit output */
-		OutBuffer[AudioOut::OPL]->WriteSampleS16(Out);
+		/* Digital to "analog" conversion */
+		float AnalogOut = m_DAC->SendDigitalData(Out);
+
+		OutBuffer[AudioOut::Default]->WriteSampleF32(AnalogOut);
 	}
 }
 

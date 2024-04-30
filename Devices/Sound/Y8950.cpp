@@ -75,11 +75,15 @@ enum Rhythm : uint32_t
 	HH = 14,	/* High hat    (CH8 - S1) */
 	SD = 15,	/* Snare drum  (CH8 - S2) */
 	TOM = 16,	/* Tom tom     (CH9 - S1) */
-	TC = 17	/* Top cymbal  (CH9 - S2) */
+	TC = 17		/* Top cymbal  (CH9 - S2) */
 };
 
+/* Static class member initialization */
+const std::wstring Y8950::s_DeviceName = L"Yamaha Y8950";
+
 Y8950::Y8950(uint32_t ClockSpeed) :
-	m_ClockSpeed(ClockSpeed)
+	m_ClockSpeed(ClockSpeed),
+	m_ClockDivider(4 * 18)
 {
 	/* Create DAC */
 	m_DAC = std::make_unique<YM3014>(5.0f);
@@ -93,7 +97,7 @@ Y8950::Y8950(uint32_t ClockSpeed) :
 
 const wchar_t* Y8950::GetDeviceName()
 {
-	return L"Yamaha Y8950";
+	return s_DeviceName.c_str();
 }
 
 void Y8950::Reset(ResetType Type)
@@ -154,11 +158,11 @@ bool Y8950::EnumAudioOutputs(uint32_t OutputNr, AUDIO_OUTPUT_DESC& Desc)
 {
 	if (OutputNr == AudioOut::Default)
 	{
-		Desc.SampleRate		= m_ClockSpeed / (4 * 18);
-		Desc.SampleFormat	= AudioFormat::AUDIO_FMT_F32;
+		Desc.SampleRate		= m_ClockSpeed / m_ClockDivider;
+		Desc.SampleFormat	= m_DAC->GetAudioFormat();
 		Desc.Channels		= 1;
 		Desc.ChannelMask	= SPEAKER_FRONT_CENTER;
-		Desc.Description	= L"FM";
+		Desc.Description	= L"Analog out (" + m_DAC->GetDeviceName() + L")";
 		return true;
 	}
 
@@ -588,8 +592,8 @@ void Y8950::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
 	};
 
 	uint32_t TotalCycles = ClockCycles + m_CyclesToDo;
-	uint32_t Samples = TotalCycles / (18 * 4);
-	m_CyclesToDo = TotalCycles % (18 * 4);
+	uint32_t Samples = TotalCycles / m_ClockDivider;
+	m_CyclesToDo = TotalCycles % m_ClockDivider;
 
 	while (Samples-- != 0)
 	{
@@ -622,7 +626,7 @@ void Y8950::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer)
 		int16_t Out = std::clamp(m_OPL.Out, -32768, 32767);
 
 		/* Digital to "analog" conversion */
-		float AnalogOut = m_DAC->SendAudioData(Out);
+		float AnalogOut = m_DAC->SendDigitalData(Out);
 
 		OutBuffer[AudioOut::Default]->WriteSampleF32(AnalogOut);
 	}
