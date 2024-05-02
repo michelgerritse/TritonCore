@@ -21,17 +21,16 @@ See LICENSE.txt in the root directory of this source tree.
 class YM3014
 {
 public:
-	YM3014(float Vdd = 5.0f);
+	YM3014() = default;
 	~YM3014() = default;
 
 	const std::wstring& GetDeviceName();
 	uint32_t			GetAudioFormat();
+	uint32_t			GetAudioChannels();
 	float				SendDigitalData(int16_t Data);
 
 private:
 	static const std::wstring s_DeviceName;
-
-	float m_Vdd;	/* Input voltage */
 };
 
 #endif // !_YM3014_H_

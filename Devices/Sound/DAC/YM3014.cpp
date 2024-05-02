@@ -88,11 +88,6 @@ See LICENSE.txt in the root directory of this source tree.
 /* Static class member initialization */
 const std::wstring YM3014::s_DeviceName = L"Yamaha YM3014";
 
-YM3014::YM3014(float Vdd) :
-	m_Vdd(Vdd)
-{
-}
-
 const std::wstring& YM3014::GetDeviceName()
 {
 	return s_DeviceName;
@@ -103,23 +98,26 @@ uint32_t YM3014::GetAudioFormat()
 	return AudioFormat::AUDIO_FMT_F32;
 }
 
+uint32_t YM3014::GetAudioChannels()
+{
+	return 1;
+}
+
 float YM3014::SendDigitalData(int16_t Data)
 {	
-	/* Convert sample data (1's complement) */
-	uint16_t uData = (Data ^ (Data >> 15));
+	/* Invert negative data (1's complement) */
+	uint32_t uData = (Data ^ (Data >> 15));
 
 	/* Count leading zero's (ignoring the sign bit) */
-	auto ZeroCount = std::countl_zero((uint16_t) (uData << 1));
+	uint32_t ZeroCount = std::countl_zero(uData << 17);
 	
-	/* Extract the 9 most significant bits (excluding sign bit) */
-	auto Shift = std::min(ZeroCount, 6);
-	uData = (uData >> (6 - Shift)) & 0x1FF;
+	/* Extract the 10 significant bits, invert sign */
+	uint32_t Shift = std::min(ZeroCount, 6u);
+	uData = ((Data >> (6 - Shift)) & 0x3FF) ^ 0x200;
 
-	float Sign = (Data & 0x8000) ? -1.0f : 1.0f;
+	/* Exponent */
+	float Exponent = (float) (1 << Shift);
 	
-	/* Analog shift (exponent) */
-	float Exponent = (float) exp2(-Shift);
-
 	/* Mantissa */
 	float Mantissa = 0.0009765625f;              //2^-10
 	Mantissa += (1.0f / 512.0f) * uData;
@@ -134,8 +132,10 @@ float YM3014::SendDigitalData(int16_t Data)
 	//if (uData & 0x040) Mantissa += 0.125f;       //2^-3
 	//if (uData & 0x080) Mantissa += 0.25f;        //2^-2
 	//if (uData & 0x100) Mantissa += 0.5f;         //2^-1
+	//if (uData & 0x200) Mantissa += 1.0f;         //2^ 0
 
-	float Vout = Sign * Mantissa * Exponent;
+	/* Analog shift */
+	float Vout = (-1.0f + Mantissa) / Exponent;
 
 	return Vout;
 }
