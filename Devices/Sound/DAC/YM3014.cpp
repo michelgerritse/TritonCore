@@ -119,7 +119,7 @@ float YM3014::SendDigitalData(int16_t Data)
 	float Exponent = (float) (1 << Shift);
 	
 	/* Mantissa */
-	float Mantissa = 0.0009765625f;              //2^-10
+	float Mantissa = -1.0f + 0.0009765625f;   //-1 + 2^-10
 	Mantissa += (1.0f / 512.0f) * uData;
 	
 	//TODO: Get actual voltage levels from hardware testing
@@ -135,7 +135,7 @@ float YM3014::SendDigitalData(int16_t Data)
 	//if (uData & 0x200) Mantissa += 1.0f;         //2^ 0
 
 	/* Analog shift */
-	float Vout = (-1.0f + Mantissa) / Exponent;
+	float Vout = Mantissa / Exponent;
 
 	return Vout;
 }
