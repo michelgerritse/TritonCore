@@ -86,7 +86,7 @@ Y8950::Y8950(uint32_t ClockSpeed) :
 	m_ClockDivider(4 * 18)
 {
 	/* Create DAC */
-	m_DAC = std::make_unique<YM3014>(5.0f);
+	m_DAC = std::make_unique<YM3014>();
 	
 	/* Build OPL tables */
 	YM::OPL::BuildTables();
@@ -160,7 +160,7 @@ bool Y8950::EnumAudioOutputs(uint32_t OutputNr, AUDIO_OUTPUT_DESC& Desc)
 	{
 		Desc.SampleRate		= m_ClockSpeed / m_ClockDivider;
 		Desc.SampleFormat	= m_DAC->GetAudioFormat();
-		Desc.Channels		= 1;
+		Desc.Channels		= m_DAC->GetAudioChannels();
 		Desc.ChannelMask	= SPEAKER_FRONT_CENTER;
 		Desc.Description	= L"Analog out (" + m_DAC->GetDeviceName() + L")";
 		return true;
