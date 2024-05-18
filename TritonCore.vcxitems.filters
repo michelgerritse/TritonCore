@@ -113,6 +113,15 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\CPU\H8_520.h">
       <Filter>Devices\CPU</Filter>
     </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Core\Types.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Core\Version.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Core\Bit.h">
+      <Filter>Core</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Interfaces">
@@ -168,6 +177,9 @@
     </Filter>
     <Filter Include="Devices\CPU">
       <UniqueIdentifier>{bcd115a1-1cd9-4017-bd80-b57db36ce26b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Core">
+      <UniqueIdentifier>{a90a6d6a-b703-4bd4-bfcb-bf25cf9ed2d0}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>

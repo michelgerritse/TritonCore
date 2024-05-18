@@ -20,6 +20,9 @@
     <None Include="$(MSBuildThisFileDirectory)README.md" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Core\Bit.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)Core\Types.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)Core\Version.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\CPU\H8_520.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\ADPCM.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Devices\Sound\AY.h" />
