@@ -72,10 +72,10 @@ enum Rhythm : uint32_t
 {
 	BD1 = 12,	/* Bass drum 1 (CH7 - S1) */
 	BD2 = 13,	/* Bass drum 2 (CH7 - S2) */
-	HH = 14,	/* High hat    (CH8 - S1) */
-	SD = 15,	/* Snare drum  (CH8 - S2) */
+	HH  = 14,	/* High hat    (CH8 - S1) */
+	SD  = 15,	/* Snare drum  (CH8 - S2) */
 	TOM = 16,	/* Tom tom     (CH9 - S1) */
-	TC = 17		/* Top cymbal  (CH9 - S2) */
+	CYM = 17	/* Top cymbal  (CH9 - S2) */
 };
 
 /* Static class member initialization */
@@ -486,7 +486,7 @@ void Y8950::WriteRegisterArray(uint8_t Address, uint8_t Data)
 				m_OPL.Slot[Rhythm::BD2].DrumLatch = (Data >> 4) & 0x01;
 				m_OPL.Slot[Rhythm::SD ].DrumLatch = (Data >> 3) & 0x01;
 				m_OPL.Slot[Rhythm::TOM].DrumLatch = (Data >> 2) & 0x01;
-				m_OPL.Slot[Rhythm::TC ].DrumLatch = (Data >> 1) & 0x01;
+				m_OPL.Slot[Rhythm::CYM ].DrumLatch = (Data >> 1) & 0x01;
 				m_OPL.Slot[Rhythm::HH ].DrumLatch = (Data >> 0) & 0x01;
 			}
 		}
@@ -733,7 +733,7 @@ void Y8950::UpdatePhaseGenerator(uint32_t SlotId)
 			Slot.PgOutput = YM::OPL::PhaseOutSD[m_OPL.PhaseHH8 | m_OPL.NoiseOut];
 			break;
 
-		case Rhythm::TC:
+		case Rhythm::CYM:
 		{
 			/* Get top cymbal b5 and b3; map it to b1 and b0 of the result */
 			m_OPL.PhaseTC = (Slot.PgOutput >> 4) & 0x02; /* b5 */
@@ -999,7 +999,7 @@ void Y8950::GenerateOutput(uint32_t ChannelId)
 
 		case CH9: /* Tom + Top cymbal */
 			Output = m_OPL.Slot[TOM].Output[1]; /* Delayed by 1 sample ? */
-			Output += m_OPL.Slot[TC].Output[0];
+			Output += m_OPL.Slot[CYM].Output[0];
 
 			/* Limit (13-bit) and mix channel output */
 			m_OPL.Out += std::clamp<int16_t>(Output, -4096, 4095) * 2;
@@ -1040,7 +1040,7 @@ int16_t Y8950::GetModulation(uint32_t SlotId)
 		{
 			//case Rhythm::HH: return 0;
 		case Rhythm::SD: return 0;
-		case Rhythm::TC: return 0;
+		case Rhythm::CYM: return 0;
 		}
 	}
 
