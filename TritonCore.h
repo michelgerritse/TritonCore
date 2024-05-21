@@ -30,4 +30,7 @@ See LICENSE.txt in the root directory of this source tree.
 /// <summary>Current TritonCore API</summary>
 namespace TritonCore = TritonCore_v1;
 
+/// <summary>Shortened TritonCore namespace alias</summary>
+namespace TC = TritonCore;
+
 #endif // !_TRITON_CORE_H_
