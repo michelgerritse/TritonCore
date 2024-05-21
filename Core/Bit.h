@@ -22,8 +22,58 @@ See LICENSE.txt in the root directory of this source tree.
 /// <summary>TritonCore API version 1</summary>
 namespace TritonCore_v1
 {
-	/// <summary>Get the parity of a given integral value</summary>
-	/// <param name="Value">Integer value</param>
+	/// <summary>Get the n-th bit of a given integer.</summary>
+	/// <param name= "Value">Integer value (signed and unsigned).</param>
+	/// <param name="BitPos">Bit position (n-th bit).</param>
+	/// <returns>The value of the bit (0 or 1) at the n-th position.</returns>
+	template<std::integral T>
+	constexpr auto GetBit(T Value, T BitPos)
+	{
+		return (Value >> BitPos) & 1;
+	}
+
+	/// <summary>Set the n-th bit of a given integer.</summary>
+	/// <param name= "Value">Integer value (signed and unsigned).</param>
+	/// <param name="BitPos">Bit position (n-th bit).</param>
+	/// <returns>New value of <paramref name="Value"/>.</returns>
+	template<std::integral T>
+	constexpr auto SetBit(T Value, T BitPos)
+	{
+		return Value | (1 << BitPos);
+	}
+
+	/// <summary>Clear the n-th bit of a given integer.</summary>
+	/// <param name= "Value">Integer value (signed and unsigned).</param>
+	/// <param name="BitPos">Bit position (n-th bit).</param>
+	/// <returns>New value of <paramref name="Value"/></returns>
+	template<std::integral T>
+	constexpr auto ClearBit(T Value, T BitPos)
+	{
+		return Value & ~(1 << BitPos);
+	}
+
+	/// <summary>Toggle the n-th bit of a given integer.</summary>
+	/// <param name= "Value">Integer value (signed and unsigned).</param>
+	/// <param name="BitPos">Bit position (n-th bit).</param>
+	/// <returns>New value of <paramref name="Value"/></returns>
+	template<std::integral T>
+	constexpr auto FlipBit(T Value, T BitPos)
+	{
+		return Value ^ (1 << BitPos);
+	}
+
+	/// <summary>Test the n-th bit of a given integer.</summary>
+	/// <param name= "Value">Integer value (signed and unsigned).</param>
+	/// <param name="BitPos">Bit position (n-th bit).</param>
+	/// <returns>True if the n-th bit is set, false otherwise.</returns>
+	template<std::integral T>
+	constexpr bool TestBit(T Value, T BitPos)
+	{
+		return Value & (1 << BitPos);
+	}
+	
+	/// <summary>Get the parity of a given integer</summary>
+	/// <param name="Value">Integer value (signed and unsigned)</param>
 	/// <returns>The number of bits set to '1' in <paramref name="Value"/></returns>
 	/// <remarks>Signed integers will be converted to unsigned integers</remarks>
 	template<std::integral T>
@@ -35,15 +85,13 @@ namespace TritonCore_v1
 		return std::popcount(uValue);
 	}
 
-	/// <summary>Determine if a given integral value is a power of 2</summary>
-	/// <param name="Value">Integer value</param>
-	/// <returns>True if power of 2, false otherwise</returns>
+	/// <summary>Determine if a given integer is a power of 2</summary>
+	/// <param name="Value">Integer value (signed and unsigned)</param>
+	/// <returns>True if power of 2 and greater than 0, false otherwise</returns>
 	template<std::integral T>
-	constexpr auto IsPowerOfTwo(T Value)
+	constexpr bool IsPowerOfTwo(T Value)
 	{
-		constexpr size_t NumBits = static_cast<size_t>(CHAR_BIT * sizeof(T));
-		
-		return std::bitset<NumBits>(Value).count() == 1;
+		return (Value && !(Value & (Value - 1)));
 	}
 }
 
