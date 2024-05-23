@@ -15,9 +15,7 @@ See LICENSE.txt in the root directory of this source tree.
 #define _TRITON_CORE_BIT_H_
 
 #include <bit>
-#include <bitset>
 #include <concepts>
-#include <cstdint>
 
 /// <summary>TritonCore API version 1</summary>
 namespace TritonCore_v1
@@ -69,7 +67,20 @@ namespace TritonCore_v1
 	template<std::integral T>
 	constexpr bool TestBit(T Value, T BitPos)
 	{
-		return Value & (1 << BitPos);
+		return ((Value & (1 << BitPos)) != 0);
+	}
+
+	/// <summary>Get specified bit field of a given integer.</summary>
+	/// <param name= "Value">Integer value (signed and unsigned).</param>
+	/// <param name="FieldStart">Bit field start position.</param>
+	/// <param name="FieldSize">Bit field size.</param>
+	/// <returns>The bit field value.</returns>
+	template<std::integral T>
+	constexpr auto GetBitField(T Value, T FieldStart, T FieldSize)
+	{
+		constexpr T Mask = ((1 << FieldSize) - 1);
+		
+		return (Value >> FieldStart) & Mask;
 	}
 	
 	/// <summary>Get the parity of a given integer</summary>
