@@ -4,7 +4,7 @@
   | || '_| |  _/ _ \ ' \ (__/ _ \ '_/ -_)
   |_||_| |_|\__\___/_||_\___\___/_| \___|
 
-Copyright © 2023, Michel Gerritse
+Copyright © 2023 - 2024, Michel Gerritse
 All rights reserved.
 
 This source code is available under the BSD-3-Clause license.
@@ -21,7 +21,7 @@ See LICENSE.txt in the root directory of this source tree.
 class SegaPCM : public ISoundDevice, public IMemoryAccess
 {
 public:
-	SegaPCM(uint32_t Flags = 0);
+	SegaPCM(uint32_t ClockSpeed = 16'000'000, uint32_t BankFlags = 0);
 	~SegaPCM() = default;
 
 	/* IDevice methods */
@@ -41,23 +41,23 @@ public:
 	void			CopyToMemoryIndirect(uint32_t MemoryID, size_t Offset, uint8_t* Data, size_t Size);
 
 private:
+	static const std::wstring s_DeviceName;
+
 	/* PCM Channel */
-	struct CHANNEL
+	struct channel_t
 	{
-		uint32_t	ON;			/* Channel On / Off flag */
-		uint32_t	LOOP;		/* Loop On / Off flag */
-		uint32_t	ADDR;		/* Current memory address (16.8 fixed point) */
-		uint32_t	BANK;		/* Current memory bank (6-bit) */
-		uint8_t		PANL;		/* Panpot (L) (7-bit) */
-		uint8_t		PANR;		/* Panpot (R) (7-bit) */
-		uint32_t	FD;			/* Frequency Delta (8-bit) */
-		uint32_t	LS;			/* Loop Start address (16-bit) */
-		uint32_t	END;		/* End address (16-bit) */
+		uint32_t	On;			/* Channel enable flag */
+		uint32_t	Loop;		/* Loop enable flag */
+		uint32_t	Bank;		/* Memory bank (6-bit) */
+		uint8_t		PanL;		/* Panpot (L) (7-bit) */
+		uint8_t		PanR;		/* Panpot (R) (7-bit) */
+		uint32_t	Delta;		/* Frequency delta (8-bit) */
+		pair32_t	Addr;		/* Current memory address (24-bit: 16.8) */
+		pair32_t	LoopAddr;	/* Loop address (16-bit) */
+		uint32_t	StopAddr;	/* Stop address (16-bit) */
 	};
 
-	CHANNEL		m_Channel[16];
-	uint32_t	m_Shift;		/* 16.8 fixed point shit */
-	uint32_t	m_OutputMask;	/* 10 / 12 bit DAC output mask */
+	channel_t	m_Channel[16];
 	uint32_t	m_BankShift;
 	uint32_t	m_BankMask;
 

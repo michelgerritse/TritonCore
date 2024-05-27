@@ -4,7 +4,7 @@
   | || '_| |  _/ _ \ ' \ (__/ _ \ '_/ -_)
   |_||_| |_|\__\___/_||_\___\___/_| \___|
 
-Copyright © 2023, Michel Gerritse
+Copyright © 2023 - 2024, Michel Gerritse
 All rights reserved.
 
 This source code is available under the BSD-3-Clause license.
@@ -92,13 +92,6 @@ See LICENSE.txt in the root directory of this source tree.
 	The DAC ouputs to two National Semiconductor MF6-50
 	6th Order Switched Capacitor Butterworth Lowpass Filter
 
-	Things that need validation:
-	----------------------------
-	- When is the fractional part of the 16.8 sample address reset ? I assume on address (MSB and LSB) write
-	- Where is the factional part stored ? In SRAM or internal to the chip ? The former would indicate
-	  it being able to be accessed from the register banks.
-	- What do the unknown registers do ? Some get written a lot. Envelope data ? Other features ?
-
 	Credits:
 	--------
 	MAME: register bank layout:
@@ -106,22 +99,23 @@ See LICENSE.txt in the root directory of this source tree.
 
 */
 
-SegaPCM::SegaPCM(uint32_t Flags) :
-	m_ClockDivider(128),
-	m_Shift(8), /* 16.8 fixed point address format */
-	m_BankShift(0),
-	m_BankMask(0),
-	m_OutputMask(~((1 << (16 - 10)) - 1)) /* 10 or 12 bit DAC ?*/
+/* Audio output enumeration */
+enum AudioOut
 {
-	/* Setup memory banking parameters */
-	if (Flags)
-	{
-		m_BankShift = Flags & 0x0F;
-		m_BankMask = (0x70 | ((Flags >> 16) & 0xFC));
-	}
+	Default = 0
+};
 
+/* Static class member initialization */
+const std::wstring SegaPCM::s_DeviceName = L"SegaPCM (315-5218)";
+
+SegaPCM::SegaPCM(uint32_t ClockSpeed, uint32_t BankFlags) :
+	m_ClockSpeed(ClockSpeed),
+	m_ClockDivider(128),
+	m_BankShift(BankFlags & 0x0F),
+	m_BankMask(0x70 | (BankFlags >> 16) & 0xFC)
+{
 	/* Calculate memory size */
-	uint32_t Size = (1 << TritonCore::GetParity(m_BankMask)) << 16;
+	auto Size = (1 << TC::GetParity(m_BankMask)) << 16;
 
 	/* Set memory size */
 	m_Memory.resize(Size);
@@ -131,7 +125,7 @@ SegaPCM::SegaPCM(uint32_t Flags) :
 
 const wchar_t* SegaPCM::GetDeviceName()
 {
-	return L"SegaPCM (315-5218)";
+	return s_DeviceName.c_str();
 }
 
 void SegaPCM::Reset(ResetType Type)
@@ -150,29 +144,17 @@ void SegaPCM::Reset(ResetType Type)
 
 void SegaPCM::SendExclusiveCommand(uint32_t Command, uint32_t Value)
 {
-	if (Command == 0) /* Interface register */
-	{
-		/* Setup memory banking parameters */
-		m_BankShift = Value & 0x0F;
-		m_BankMask = (0x70 | ((Value >> 16) & 0xFC));
-
-		/* Calculate memory size */
-		uint32_t Size = (1 << TritonCore::GetParity(m_BankMask)) << 16;
-
-		/* Set memory size */
-		m_Memory.resize(Size);
-	}
 }
 
 bool SegaPCM::EnumAudioOutputs(uint32_t OutputNr, AUDIO_OUTPUT_DESC& Desc)
 {
-	if (OutputNr == 0)
+	if (OutputNr == AudioOut::Default)
 	{
-		Desc.SampleRate	= m_ClockSpeed / m_ClockDivider;
-		Desc.SampleFormat = 0;
-		Desc.Channels = 2;
-		Desc.ChannelMask = SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT;
-		Desc.Description = L"";
+		Desc.SampleRate		= m_ClockSpeed / m_ClockDivider;
+		Desc.SampleFormat	= AudioFormat::AUDIO_FMT_S16;
+		Desc.Channels		= 2;
+		Desc.ChannelMask	= SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT;
+		Desc.Description	= L"";
 
 		return true;
 	}
@@ -191,82 +173,75 @@ uint32_t SegaPCM::GetClockSpeed()
 }
 
 void SegaPCM::Write(uint32_t Address, uint32_t Data)
-{
-	auto Offset = (Address & 0x7F) >> 3;
-	auto Register = Address & 0x07;
-	auto& Channel = m_Channel[Offset];
+{	
+	Data &= 0xFF; /* 8-bit data bus */
+	
+	auto Offset		= TC::GetBitField(Address, 3u, 4u);
+	auto Register	= TC::GetBitField(Address, 0u, 3u);
+	auto Bank		= TC::GetBit(Address, 7u);
+	auto& Channel	= m_Channel[Offset];
 
-	Data &= 0xFF;
-
-	if ((Address & 0x80) == 0) /* Register bank 1 (0x00 - 0x7F) */
+	switch ((Bank << 3) | Register)
 	{
-		switch (Register)
-		{
-		case 0x00: /* Unknown */
-			//Note: This get written a lot by multiple games
-			break;
+	case 0x00: /* Current Address [7:0] (needs validation) */
+		Channel.Addr.u8ll = Data;
+		break;
 
-		case 0x01: /* Unknown */
-			break;
+	case 0x01: /* Unknown */
+		break;
 
-		case 0x02: /* Panpot Left (7-bit) */
-			Channel.PANL = Data & 0x7F;
-			break;
+	case 0x02: /* Panpot Left (7-bit) */
+		Channel.PanL = Data & 0x7F;
+		break;
 
-		case 0x03: /* Panpot Right (7-bit) */
-			Channel.PANR = Data & 0x7F;
-			break;
+	case 0x03: /* Panpot Right (7-bit) */
+		Channel.PanR = Data & 0x7F;
+		break;
 
-		case 0x04: /* Loop Address (LSB) */
-			Channel.LS = (Channel.LS & 0xFF00) | Data;
-			break;
+	case 0x04: /* Loop Address [15:8] */
+		Channel.LoopAddr.u8lh = Data;
+		break;
 
-		case 0x05: /* Loop Address (MSB) */
-			Channel.LS = (Data << 8) | (Channel.LS & 0x00FF);
-			break;
+	case 0x05: /* Loop Address [23:16] */
+		Channel.LoopAddr.u8hl = Data;
+		break;
 
-		case 0x06: /* End Address (MSB) */
-			Channel.END = ((Data + 1) & 0xFF) << 8; /* END address is inclusive */
-			break;
+	case 0x06: /* Stop Address */
+		Channel.StopAddr = Data;
+		break;
 
-		case 0x07: /* Frequency Delta */
-			Channel.FD = Data;
-			break;
-		}
-	}
-	else /* Register bank 2 (0x80 - 0xFF) */
-	{
-		switch (Register)
-		{
-		case 0x00: /* Unknown */
-			break;
+	case 0x07: /* Frequency Delta */
+		Channel.Delta = Data;
+		break;
 
-		case 0x01: /* Unknown */
-			break;
+	case 0x08: /* Unknown */
+		break;
 
-		case 0x02: /* Unknown */
-			break;
+	case 0x09: /* Unknown */
+		break;
 
-		case 0x03: /* Unknown */
-			break;
+	case 0x0A: /* Unknown */
+		break;
 
-		case 0x04: /* Current Address (LSB) */
-			Channel.ADDR = (Channel.ADDR & 0xFF0000) | (Data << 8);
-			break;
+	case 0x0B: /* Unknown */
+		break;
 
-		case 0x05: /* Current Address (MSB) */
-			Channel.ADDR = (Channel.ADDR & 0x00FF00) | (Data << 16);
-			break;
+	case 0x0C: /* Current Address [15:8] */
+		Channel.Addr.u8lh = Data;
+		break;
 
-		case 0x06: /* Channel Control + Banking */
-			Channel.ON = (~Data & 0x01);
-			Channel.LOOP = (~Data & 0x02);
-			Channel.BANK = (Data & m_BankMask) << m_BankShift;
-			break;
+	case 0x0D: /* Current Address [23:16] */
+		Channel.Addr.u8hl = Data;
+		break;
 
-		case 0x07: /* Unknown */
-			break;
-		}
+	case 0x0E: /* Channel Control + Banking */
+		Channel.On   = (Data & 0x01) ? 0 : ~0;
+		Channel.Loop = (~Data & 0x02);
+		Channel.Bank = (Data & m_BankMask) << m_BankShift;
+		break;
+
+	case 0x0F: /* Unknown */
+		break;
 	}
 }
 
@@ -280,54 +255,43 @@ void SegaPCM::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer
 	int32_t OutR;
 	int8_t PCM;
 
-	while (Samples != 0)
+	while (Samples--)
 	{
 		OutL = 0;
 		OutR = 0;
 
-		for (CHANNEL& Channel : m_Channel)
+		for (auto& Channel : m_Channel)
 		{
-			if (Channel.ON)
+			/* Load PCM data, convert from 8-bit unsigned to signed */
+			PCM = (m_Memory[Channel.Bank | (Channel.Addr.u32 >> 8)] ^ 0x80) & Channel.On;
+
+			/* Increase address counter (16.8 fixed point) */
+			Channel.Addr = (Channel.Addr.u32 + Channel.Delta) & 0x00FFFFFF;
+
+			if (Channel.Addr.u8hl == Channel.StopAddr)
 			{
-				/* Lookup PCM data */
-				PCM = m_Memory[Channel.BANK | (Channel.ADDR >> m_Shift)];
-
-				/* Convert from 8-bit unsigned to signed */
-				PCM = PCM - 0x80;
-
-				/* Increase address counter (16.8 fixed point) */
-				Channel.ADDR = (Channel.ADDR + Channel.FD) & 0x00FFFFFF;
-
-				/* Check for end address  */
-				if ((Channel.ADDR >> m_Shift) == Channel.END)
+				if (Channel.Loop)
 				{
-					if (Channel.LOOP) /* Loop Enabled */
-					{
-						/* Load loop address */
-						Channel.ADDR = Channel.LS << m_Shift;
-					}
-					else /* Loop Disabled */
-					{
-						/* Stop Channel */
-						Channel.ON = 0;
-					}
+					Channel.Addr = Channel.LoopAddr.u32 | (Channel.Addr.u32 & 0xFF); /* Do we need to keep the 16.8 fractional part ? */
 				}
-
-				/* Apply panning and accumulate in output buffer */
-				OutL += PCM * Channel.PANL;
-				OutR += PCM * Channel.PANR;
+				else
+				{
+					Channel.On = 0;
+				}
 			}
+
+			/* Apply panning and accumulate in output buffer */
+			OutL += (PCM * Channel.PanL);
+			OutR += (PCM * Channel.PanR);
 		}
 
 		/* Limiter (signed 16-bit) */
-		OutL = std::clamp(OutL, -32768, 32767);
-		OutR = std::clamp(OutR, -32768, 32767);
+		//OutL = std::clamp(OutL, -32768, 32767);
+		//OutR = std::clamp(OutR, -32768, 32767);
 
-		/* 10 / 12 bit DAC output (interleaved) */
-		OutBuffer[0]->WriteSampleS16(OutL & m_OutputMask);
-		OutBuffer[0]->WriteSampleS16(OutR & m_OutputMask);
-
-		Samples--;
+		//TODO: Implement National Semiconductor DAC1022 (or similar 10-bit DAC) 
+		OutBuffer[AudioOut::Default]->WriteSampleS16(OutL);
+		OutBuffer[AudioOut::Default]->WriteSampleS16(OutR);
 	}
 }
 
