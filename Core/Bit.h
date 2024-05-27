@@ -77,10 +77,8 @@ namespace TritonCore_v1
 	/// <returns>The bit field value.</returns>
 	template<std::integral T>
 	constexpr auto GetBitField(T Value, T FieldStart, T FieldSize)
-	{
-		constexpr T Mask = ((1 << FieldSize) - 1);
-		
-		return (Value >> FieldStart) & Mask;
+	{		
+		return (Value >> FieldStart) & ((1 << FieldSize) - 1);
 	}
 	
 	/// <summary>Get the parity of a given integer</summary>
