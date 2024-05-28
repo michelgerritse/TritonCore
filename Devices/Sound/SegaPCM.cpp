@@ -109,8 +109,8 @@ enum AudioOut
 const std::wstring SegaPCM::s_DeviceName = L"SegaPCM (315-5218)";
 
 SegaPCM::SegaPCM(uint32_t ClockSpeed, uint32_t BankFlags) :
-	m_ClockSpeed(ClockSpeed),
-	m_ClockDivider(128),
+	m_ClockSpeed(ClockSpeed), //NOTE: Should be fixed to 16MHz
+	m_ClockDivider(128), //NOTE: Should be set to 512 for a 31250Hz sample rate @ 16MHz clock
 	m_BankShift(BankFlags & 0x0F),
 	m_BankMask(0x70 | (BankFlags >> 16) & 0xFC)
 {
@@ -236,7 +236,7 @@ void SegaPCM::Write(uint32_t Address, uint32_t Data)
 
 	case 0x0E: /* Channel Control + Banking */
 		Channel.On   = (Data & 0x01) ? 0 : ~0;
-		Channel.Loop = (~Data & 0x02);
+		Channel.Loop = (Data & 0x02) ? 0 : ~0;
 		Channel.Bank = (Data & m_BankMask) << m_BankShift;
 		break;
 
@@ -270,14 +270,11 @@ void SegaPCM::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer
 
 			if (Channel.Addr.u8hl == Channel.StopAddr)
 			{
-				if (Channel.Loop)
-				{
-					Channel.Addr = Channel.LoopAddr.u32 | (Channel.Addr.u32 & 0xFF); /* Do we need to keep the 16.8 fractional part ? */
-				}
-				else
-				{
-					Channel.On = 0;
-				}
+				/* Load loop address */
+				Channel.Addr = Channel.LoopAddr.u32 | (Channel.Addr.u32 & 0xFF); /* Do we need to keep the 16.8 fractional part ? */
+				
+				/* Disable sound generation (if not looping) */
+				Channel.On &= Channel.Loop;
 			}
 
 			/* Apply panning and accumulate in output buffer */
