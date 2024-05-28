@@ -14,7 +14,7 @@ See LICENSE.txt in the root directory of this source tree.
 #include "SegaPCM.h"
 
 /*
-	SegaPCM (315 - 5218)
+	SegaPCM (315-5218)
 	- 16 PCM channels
 	- 8-bit unsigned PCM data
 	- Per channel (L and R) pan data
@@ -23,7 +23,6 @@ See LICENSE.txt in the root directory of this source tree.
 
 	The TTL version is used in the following arcade hardware:
 	- Sega Hang-On hardware
-	- Sega Space Harrier hardware
 
 	The CMOS version is used in the following arcade hardware:
 	- Sega OutRun hardware
@@ -37,46 +36,7 @@ See LICENSE.txt in the root directory of this source tree.
 	There are 256 registers, 16 for each channel. The registers are
 	split into 2 banks. Bit 7 is the bank select
 
-	The register address map is as follows:
-		0x00 - 0x07: Channel 1 - register bank 1
-		0x08 - 0x0F: Channel 2 - register bank 1
-		.
-		.
-		0x70 - 0x77: Channel 15 - register bank 1
-		0x78 - 0x7F: Channel 16 - register bank 1
-
-		0x80 - 0x87: Channel 1 - register bank 2
-		0x88 - 0x8F: Channel 2 - register bank 2
-		.
-		.
-		0xF0 - 0xF7: Channel 15 - register bank 2
-		0xF8 - 0xFF: Channel 16 - register bank 2
-
-	Register bank 1 layout:
-		0x00: Unknown
-		0x01: Unknown
-		0x02: Panpot left (7-bit)
-		0x03: Panpot right (7-bit)
-		0x04: Loop address LSB
-		0x05: Loop address MSB
-		0x06: End address MSB
-		0x07: Frequency delta (8-bit)
-
-	Register bank 2 layout:
-		0x00: Unknown
-		0x01: Unknown
-		0x02: Unknown
-		0x03: Unknown
-		0x04: Current address LSB
-		0x05: Current address MSB
-		0x06: Channel control and banking
-		0x07: Unknown
-
-	In reality, the SegaPCM doesn't have internal registers but
-	it uses 2 external SRAM chips. 1 for each register bank.
-
-	Note: The following information is taken from the OutRun
-	schematics. It might differ for other boards
+	The following information is taken from the OutRun schematics:
 	http://arcarc.xmission.com/PDF_Arcade_Manuals_and_Schematics/OutRun_Schematics_Cleaned.pdf
 
 	4KB SRAM (2x Toshiba TMM2015 2KB SRAM)
@@ -176,18 +136,15 @@ void SegaPCM::Write(uint32_t Address, uint32_t Data)
 {	
 	Data &= 0xFF; /* 8-bit data bus */
 	
-	auto Offset		= TC::GetBitField(Address, 3u, 4u);
-	auto Register	= TC::GetBitField(Address, 0u, 3u);
-	auto Bank		= TC::GetBit(Address, 7u);
-	auto& Channel	= m_Channel[Offset];
+	auto Offset   = TC::GetBitField(Address, 3u, 4u);
+	auto Register = TC::GetBitField(Address, 0u, 3u);
+	auto Bank     = TC::GetBit(Address, 7u);
+	auto& Channel = m_Channel[Offset];
 
 	switch ((Bank << 3) | Register)
 	{
-	case 0x00: /* Current Address [7:0] (needs validation) */
+	case 0x00: /* Current Address [7:0] (validation needed) */
 		Channel.Addr.u8ll = Data;
-		break;
-
-	case 0x01: /* Unknown */
 		break;
 
 	case 0x02: /* Panpot Left (7-bit) */
@@ -206,24 +163,12 @@ void SegaPCM::Write(uint32_t Address, uint32_t Data)
 		Channel.LoopAddr.u8hl = Data;
 		break;
 
-	case 0x06: /* Stop Address */
-		Channel.StopAddr = Data;
+	case 0x06: /* End Address [23:16] */
+		Channel.EndAddr = Data + 1;
 		break;
 
 	case 0x07: /* Frequency Delta */
 		Channel.Delta = Data;
-		break;
-
-	case 0x08: /* Unknown */
-		break;
-
-	case 0x09: /* Unknown */
-		break;
-
-	case 0x0A: /* Unknown */
-		break;
-
-	case 0x0B: /* Unknown */
 		break;
 
 	case 0x0C: /* Current Address [15:8] */
@@ -240,7 +185,12 @@ void SegaPCM::Write(uint32_t Address, uint32_t Data)
 		Channel.Bank = (Data & m_BankMask) << m_BankShift;
 		break;
 
-	case 0x0F: /* Unknown */
+	case 0x01: /* Not used (validation needed) */
+	case 0x08:
+	case 0x09:
+	case 0x0A:
+	case 0x0B:
+	case 0x0F:
 		break;
 	}
 }
@@ -268,7 +218,7 @@ void SegaPCM::Update(uint32_t ClockCycles, std::vector<IAudioBuffer*>& OutBuffer
 			/* Increase address counter (16.8 fixed point) */
 			Channel.Addr = (Channel.Addr.u32 + Channel.Delta) & 0x00FFFFFF;
 
-			if (Channel.Addr.u8hl == Channel.StopAddr)
+			if (Channel.Addr.u8hl == Channel.EndAddr)
 			{
 				/* Load loop address */
 				Channel.Addr = Channel.LoopAddr.u32 | (Channel.Addr.u32 & 0xFF); /* Do we need to keep the 16.8 fractional part ? */

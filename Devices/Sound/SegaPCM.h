@@ -54,7 +54,7 @@ private:
 		uint32_t	Delta;		/* Frequency delta (8-bit) */
 		pair32_t	Addr;		/* Current memory address (24-bit: 16.8) */
 		pair32_t	LoopAddr;	/* Loop address (16-bit) */
-		uint32_t	StopAddr;	/* Stop address (16-bit) */
+		uint8_t		EndAddr;	/* End address (8-bit) */
 	};
 
 	channel_t	m_Channel[16];
